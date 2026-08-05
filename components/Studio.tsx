@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MaskEditor, { type ApplyEditArgs } from './MaskEditor';
 import PromptBar from './PromptBar';
 import ResultsGrid from './ResultsGrid';
 import StyleControls from './StyleControls';
@@ -13,7 +14,26 @@ import type {
   ProviderName,
   StylePreset,
 } from '@/lib/providers/types';
-import { ASPECTS, type AspectKey, type RenderRun, type Selection } from '@/lib/studio';
+import {
+  ASPECTS,
+  EDIT_OP_LABELS,
+  type AspectKey,
+  type RenderRun,
+  type Selection,
+} from '@/lib/studio';
+
+/** Random enough to key a list; not used for anything security-sensitive. */
+function runId(): string {
+  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Pull the error message out of a route's JSON body, whatever shape it took. */
+function messageFrom(payload: unknown, status: number, fallback: string): string {
+  if (payload && typeof payload === 'object' && 'error' in payload) {
+    return String((payload as { error: unknown }).error);
+  }
+  return `${fallback} (HTTP ${status}).`;
+}
 
 /**
  * Holds the state the panels share. The brief lists the four panels but not a
@@ -39,6 +59,13 @@ export default function Studio({ providerName }: { providerName: ProviderName })
 
   const [runs, setRuns] = useState<RenderRun[]>([]);
   const [selected, setSelected] = useState<Selection | null>(null);
+
+  // Region editor: which image is open, and its own in-flight/error state so a
+  // failed edit does not disturb the studio behind the dialog.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editingRunId, setEditingRunId] = useState<string | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState('');
 
   /**
    * Object URLs are not garbage collected on their own, and they are created as
@@ -108,11 +135,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       const payload: unknown = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const message =
-          payload && typeof payload === 'object' && 'error' in payload
-            ? String((payload as { error: unknown }).error)
-            : `Generation failed (HTTP ${response.status}).`;
-        setError(message);
+        setError(messageFrom(payload, response.status, 'Generation failed'));
         return;
       }
 
@@ -123,7 +146,8 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       }
 
       const run: RenderRun = {
-        id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: runId(),
+        op: 'generate',
         prompt: prompt.trim(),
         images: result.images,
         inputType,
@@ -156,6 +180,86 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     prompt,
     style,
   ]);
+
+  const handleOpenEditor = useCallback(
+    (selection: Selection) => {
+      const run = runs.find((candidate) => candidate.id === selection.runId);
+      const src = run?.images[selection.index];
+      if (!run || !src) return;
+
+      setSelected(selection);
+      setEditing(src);
+      setEditingRunId(run.id);
+      setEditError('');
+    },
+    [runs],
+  );
+
+  const handleCloseEditor = useCallback(() => {
+    if (editBusy) return; // don't drop a request the provider is still serving
+    setEditing(null);
+    setEditingRunId(null);
+    setEditError('');
+  }, [editBusy]);
+
+  /**
+   * Send the painted mask to whichever branch the user chose. The result lands
+   * in the gallery as a new run rather than replacing the original, so an edit
+   * can itself be edited and nothing the user liked is ever lost.
+   */
+  const handleApplyEdit = useCallback(
+    async ({ op, prompt: instruction, image, mask }: ApplyEditArgs) => {
+      setEditBusy(true);
+      setEditError('');
+
+      const form = new FormData();
+      form.set('prompt', instruction);
+      form.set(
+        'image',
+        typeof image === 'string' ? image : new File([image], 'render.png', { type: 'image/png' }),
+      );
+      if (mask) form.set('mask', new File([mask], 'mask.png', { type: 'image/png' }));
+
+      const endpoint = op === 'inpaint' ? '/api/inpaint' : '/api/add-element';
+
+      try {
+        const response = await fetch(endpoint, { method: 'POST', body: form });
+        const payload: unknown = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setEditError(messageFrom(payload, response.status, `${EDIT_OP_LABELS[op]} failed`));
+          return;
+        }
+
+        const result = payload as ImageResult;
+        if (!result?.images?.length) {
+          setEditError('The provider returned no images.');
+          return;
+        }
+
+        const run: RenderRun = {
+          id: runId(),
+          op,
+          prompt: instruction,
+          images: result.images,
+          sourceRunId: editingRunId ?? undefined,
+          createdAt: Date.now(),
+        };
+
+        setRuns((previous) => [run, ...previous]);
+        setSelected({ runId: run.id, index: 0 });
+        setEditing(null);
+        setEditingRunId(null);
+      } catch (cause) {
+        setEditError(
+          cause instanceof Error ? `Network error: ${cause.message}` : 'Unknown error during edit.',
+        );
+      } finally {
+        setEditBusy(false);
+      }
+    },
+    [editingRunId],
+  );
 
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
 
@@ -219,6 +323,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
               aspect={aspect}
               hasInput={Boolean(file)}
               onSelect={setSelected}
+              onEditRegion={handleOpenEditor}
             />
           </div>
 
@@ -243,6 +348,17 @@ export default function Studio({ providerName }: { providerName: ProviderName })
           />
         </main>
       </div>
+
+      {editing && (
+        <MaskEditor
+          src={editing}
+          busy={editBusy}
+          error={editError}
+          onApply={handleApplyEdit}
+          onCancel={handleCloseEditor}
+          onError={setEditError}
+        />
+      )}
     </div>
   );
 }

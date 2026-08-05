@@ -7,9 +7,11 @@ the finished render to change or add elements.
 The full specification lives in [`VISOID_CLONE_BRIEF.md`](./VISOID_CLONE_BRIEF.md).
 This README covers what is built, how to run it, and where the seams are.
 
-**Status: Phase 1 complete.** The whole UI is clickable with no API keys — every
-AI call is served by `MockProvider`, which returns placeholders that print the
-exact parameters that reached the provider.
+**Status: Phase 1 complete, Phase 3 UI complete.** The whole app is clickable with
+no API keys — every AI call is served by `MockProvider`, which returns
+placeholders that print the exact parameters that reached the provider. That
+includes the region editor: you can paint a mask and run both edit branches
+end to end today.
 
 ## Quickstart
 
@@ -61,15 +63,41 @@ components/
   Studio.tsx                holds the state the panels share
   UploadPanel.tsx           click / drag-drop / paste, input-type toggle
   StyleControls.tsx         style preset, structure method, strength slider, format
-  ResultsGrid.tsx           session gallery, variation selection
+  ResultsGrid.tsx           session gallery, variation selection, edit entry point
+  MaskEditor.tsx            brush → mask PNG, change/add modes
   PromptBar.tsx             prompt + Generate (⌘/Ctrl+Enter)
 lib/
   providers/{types,index,mock,fal,replicate,comfyui}.ts
   preprocess.ts             input type → controlType, default strengths
+  mask.ts                   stroke geometry, mask export, image field encoding
   studio.ts                 aspect ratios and run types shared by the panels
   validate.ts               upload limits and field validation
   api.ts                    one error funnel for all routes
 ```
+
+### Region editor
+
+Select a variation in the gallery, then **Edit region**. Paint over an area and
+pick a branch: *Change this* (mask-based inpaint) or *Add something* (localized
+insertion, where a mask is optional because the model can place from language
+alone). Brush size, eraser, undo and clear are there; Escape closes.
+
+Three details that are load-bearing:
+
+- **Strokes are stored in normalised coordinates** (0..1, radius as a fraction of
+  width). One stroke list renders to the on-screen overlay, to a
+  full-resolution export mask, and again after a resize — without ever rescaling
+  stored points. Undo is a `pop`.
+- **The image is never drawn into the stroke canvas.** The overlay holds brush
+  marks only and the export mask is rendered separately at natural resolution, so
+  the canvas can't be tainted no matter where the render came from, and the
+  exported PNG stays strictly two-tone (white = edit, black = keep).
+- **Results are appended, never substituted.** An edit becomes a new run in the
+  gallery, so it can itself be edited and nothing the user liked is lost.
+
+Provider images are forwarded as URLs when they are remote (no re-upload, no CORS
+problem) and rasterised to PNG when they are data URIs — which is also how mock's
+SVG placeholders round-trip without punching a hole in the SVG rejection.
 
 ### Mock mode
 
@@ -94,7 +122,7 @@ provider call is ever made from the browser.
 | --- | --- | --- |
 | 1 | Scaffold, UI, MockProvider | **Done** |
 | 2 | `FalProvider.generate` — Flux + ControlNet | Interface + model constants scaffolded; methods throw a 501 naming the phase |
-| 3 | `MaskEditor`, inpaint, add-element | Routes and provider methods exist; the canvas component is not built |
+| 3 | `MaskEditor`, inpaint, add-element | **UI done** and working against Mock; needs a provider (Flux Fill / Nano Banana Pro) behind it |
 | 4 | Style ref, pick-to-upscale, LLM enrichment | Selection state and the upscale route exist; `enrich-prompt` ships a rule-based stand-in |
 | 5 | Blob storage, history, auth | Not started — session history is in memory and clears on refresh |
 
@@ -126,20 +154,27 @@ ESLint 10.
 
 ## Verification
 
-Phase 1 was checked with `npm run build`, `npm run lint`, `npm run typecheck`,
-plus request-level tests against a running server (all four provider ops, the
-501 path with `RENDER_PROVIDER=fal`, and validation rejections for missing
-prompt/image, unknown control type, out-of-range strength, non-image upload, bad
-variant count, `scale=3`) and a Playwright pass covering upload → preset
-switching → generate → selection, with no console errors and no horizontal
-overflow at 390/768/1440 px.
+`npm run build`, `npm run lint` and `npm run typecheck` are clean.
+
+Beyond that: request-level tests against a running server (all four provider ops,
+the 501 path with `RENDER_PROVIDER=fal`, and validation rejections for missing
+prompt/image/mask, unknown control type, out-of-range strength, non-image upload,
+bad variant count, `scale=3`), plus two Playwright passes — generation (upload →
+preset switching → generate → selection, no horizontal overflow at 390/768/1440)
+and the region editor (mask required for *Change this* but optional for *Add
+something*, undo/clear, mask exported as a PNG at the image's natural resolution,
+source rasterised to PNG rather than SVG, results appended rather than replacing
+the original, Escape closes). No console errors in either.
 
 There is no test suite in the repo yet. Worth adding with Phase 2, when there is
-provider-mapping logic whose regressions would be silent.
+provider-mapping logic whose regressions would be silent — `lib/mask.ts` is
+already written to be unit-testable without a browser beyond the canvas calls.
 
 ## Next step
 
-Phase 2: implement `FalProvider.generate`. `lib/providers/fal.ts` has the model
+Phase 2: implement `FalProvider.generate`. The region editor is already waiting on
+`inpaint` and `addElement` in the same file, so once a provider is live all three
+paths light up together. `lib/providers/fal.ts` has the model
 constants, the intended request shape, and the ControlNet mapping documented in
 place. **Verify the model IDs against fal.ai's catalogue first** — the brief is
 explicit that they move fast, and the constants are overridable by env

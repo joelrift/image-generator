@@ -40,7 +40,7 @@ export async function readImageField(
   form: FormData,
   field: string,
   opts: { required?: boolean } = {},
-): Promise<Buffer | undefined> {
+): Promise<Buffer | string | undefined> {
   const value = form.get(field);
 
   if (value === null || value === '') {
@@ -48,12 +48,22 @@ export async function readImageField(
     return undefined;
   }
 
-  // A data URI or URL is also acceptable — providers take either.
+  /*
+   * A data URI or URL is also acceptable — ImageInput is `Buffer | string`, so
+   * the reference is forwarded as-is for the provider to fetch. It must not be
+   * wrapped in a Buffer: that would hand the provider the ASCII bytes of the URL
+   * as if they were image data.
+   */
   if (typeof value === 'string') {
     if (!/^(data:image\/|https?:\/\/)/.test(value)) {
       throw badRequest(`"${field}" must be an uploaded file, a data: image URI, or an http(s) URL.`);
     }
-    return Buffer.from(value, 'utf8');
+    // SVG is rejected here for the same reason as in the upload allowlist: it is
+    // an active document. The region editor rasterises before sending.
+    if (/^data:image\/svg\+xml/i.test(value)) {
+      throw badRequest(`"${field}" must not be an SVG.`);
+    }
+    return value;
   }
 
   const file = value as File;
