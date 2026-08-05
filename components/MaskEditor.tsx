@@ -1,18 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   BRUSH_DEFAULT,
   BRUSH_MAX,
   BRUSH_MIN,
+  HANDLE_HIT_PX,
   MIN_POINT_DISTANCE,
+  TOOLS,
+  TOOL_HINTS,
+  TOOL_LABELS,
   distance,
+  findHandle,
   hasMaskContent,
   imageFieldValue,
+  regionsToMaskBlob,
   renderOverlay,
-  strokesToMaskBlob,
-  type MaskPoint,
-  type MaskStroke,
+  type Point,
+  type RectRegion,
+  type Region,
+  type ToolKind,
 } from '@/lib/mask';
 import {
   EDIT_OPS,
@@ -41,13 +48,20 @@ interface MaskEditorProps {
 /**
  * Region editor (brief §2 item 7).
  *
- * Paint over the finished render, then either change what is there ("change
- * this" → inpaint) or insert something new ("add something" → addElement).
+ * Select an area of the finished render, then either change what is there
+ * ("change this" → inpaint) or insert something new ("add something" →
+ * addElement).
  *
- * The image itself is never drawn into the stroke canvas: the overlay carries
- * only brush marks, and the export mask is rendered separately at natural
- * resolution. That keeps the canvas untainted regardless of where the render
- * came from, and means the exported mask is exactly two-tone.
+ * Selection is geometric by default. Architectural subjects are polygonal — a
+ * facade plane, a window reveal, a roof pitch — so corners are placed and
+ * adjusted precisely rather than smeared over with a brush. The brush remains for
+ * organic edges, and erase-mode regions let you cut a window back out of a facade
+ * selection.
+ *
+ * The image itself is never drawn into the overlay canvas: it carries only
+ * selection graphics, and the export mask is rendered separately at natural
+ * resolution. That keeps the canvas untainted regardless of where the render came
+ * from, and means the exported mask is exactly two-tone.
  */
 export default function MaskEditor({
   src,
@@ -58,10 +72,16 @@ export default function MaskEditor({
   onError,
 }: MaskEditorProps) {
   const [op, setOp] = useState<EditOp>('inpaint');
+  const [tool, setTool] = useState<ToolKind>('polygon');
   const [prompt, setPrompt] = useState('');
   const [brush, setBrush] = useState(BRUSH_DEFAULT);
   const [erasing, setErasing] = useState(false);
-  const [strokes, setStrokes] = useState<MaskStroke[]>([]);
+
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [draft, setDraft] = useState<Point[] | null>(null);
+  const [draftHover, setDraftHover] = useState<Point | null>(null);
+  const [rectDraft, setRectDraft] = useState<RectRegion | null>(null);
+
   const [natural, setNatural] = useState({ width: 0, height: 0 });
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [preparing, setPreparing] = useState(false);
@@ -69,15 +89,20 @@ export default function MaskEditor({
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const drawing = useRef(false);
+  const dragHandle = useRef<number | null>(null);
+  const brushing = useRef(false);
+
+  const mode = erasing ? 'erase' : 'paint';
+
+  /** Grab radius in normalised units, from a fixed screen-space feel. */
+  const handleThreshold = box.width > 0 ? HANDLE_HIT_PX / box.width : 0.02;
 
   // Keep the overlay canvas exactly on top of the rendered image box.
   useLayoutEffect(() => {
     const element = imageRef.current;
     if (!element) return;
 
-    const measure = () =>
-      setBox({ width: element.clientWidth, height: element.clientHeight });
+    const measure = () => setBox({ width: element.clientWidth, height: element.clientHeight });
 
     measure();
     const observer = new ResizeObserver(measure);
@@ -85,7 +110,7 @@ export default function MaskEditor({
     return () => observer.disconnect();
   }, [src, natural.width]);
 
-  // Repaint whenever the strokes or the box change.
+  // Repaint whenever the selection or the box changes.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || box.width === 0 || box.height === 0) return;
@@ -98,21 +123,63 @@ export default function MaskEditor({
     if (!ctx) return;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderOverlay(ctx, strokes, box.width, box.height);
-  }, [box, strokes]);
+    renderOverlay(ctx, { regions, draft, draftHover, rectDraft, mode }, box.width, box.height);
+  }, [box, regions, draft, draftHover, rectDraft, mode]);
 
-  // Escape closes, and the prompt takes focus on open.
+  const commitDraft = useCallback(() => {
+    setDraft((current) => {
+      if (current && current.length >= 3) {
+        setRegions((previous) => [...previous, { kind: 'polygon', mode, points: current }]);
+      }
+      return null;
+    });
+    setDraftHover(null);
+  }, [mode]);
+
+  // Focus the instruction field once, on open. This must not live in the
+  // keyboard effect below: that one re-runs whenever the draft changes, which
+  // would drag focus back into the textarea after every corner placed — and with
+  // focus there, Enter would insert a newline instead of closing the shape.
   useEffect(() => {
     promptRef.current?.focus();
+  }, []);
 
+  /** Escape cancels an in-progress shape first, and only then closes. */
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel();
+      const typing = /^(INPUT|TEXTAREA)$/.test((event.target as HTMLElement | null)?.tagName ?? '');
+
+      if (event.key === 'Escape') {
+        if (draft) {
+          setDraft(null);
+          setDraftHover(null);
+          return;
+        }
+        onCancel();
+        return;
+      }
+      if (typing) return;
+
+      if (event.key === 'Enter' && draft) {
+        event.preventDefault();
+        commitDraft();
+        return;
+      }
+      if ((event.key === 'Backspace' || event.key === 'Delete') && draft) {
+        event.preventDefault();
+        setDraft((current) => {
+          if (!current) return null;
+          const next = current.slice(0, -1);
+          return next.length > 0 ? next : null;
+        });
+      }
     };
+
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onCancel]);
+  }, [commitDraft, draft, onCancel]);
 
-  const pointFromEvent = useCallback((event: React.PointerEvent<HTMLCanvasElement>): MaskPoint => {
+  const pointFromEvent = useCallback((event: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
     const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
     return {
@@ -123,38 +190,112 @@ export default function MaskEditor({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (busy) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drawing.current = true;
     const point = pointFromEvent(event);
-    setStrokes((previous) => [
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (tool === 'polygon') {
+      if (draft) {
+        // Grabbing an existing corner takes priority over adding a new one.
+        const handle = findHandle(draft, point, handleThreshold);
+        if (handle >= 0) {
+          // Clicking the first corner closes the shape; any other corner moves.
+          if (handle === 0 && draft.length >= 3) {
+            commitDraft();
+            return;
+          }
+          dragHandle.current = handle;
+          return;
+        }
+        setDraft([...draft, point]);
+        return;
+      }
+      setDraft([point]);
+      return;
+    }
+
+    if (tool === 'rect') {
+      setRectDraft({ kind: 'rect', mode, from: point, to: point });
+      return;
+    }
+
+    brushing.current = true;
+    setRegions((previous) => [
       ...previous,
-      { mode: erasing ? 'erase' : 'paint', radius: brush, points: [point] },
+      { kind: 'brush', mode, radius: brush, points: [point] },
     ]);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing.current) return;
     const point = pointFromEvent(event);
 
-    setStrokes((previous) => {
+    if (tool === 'polygon') {
+      if (dragHandle.current !== null) {
+        const index = dragHandle.current;
+        setDraft((current) =>
+          current ? current.map((existing, i) => (i === index ? point : existing)) : current,
+        );
+        return;
+      }
+      if (draft) setDraftHover(point);
+      return;
+    }
+
+    if (tool === 'rect') {
+      setRectDraft((current) => (current ? { ...current, to: point } : current));
+      return;
+    }
+
+    if (!brushing.current) return;
+    setRegions((previous) => {
       const current = previous.at(-1);
-      if (!current) return previous;
+      if (!current || current.kind !== 'brush') return previous;
 
       const last = current.points.at(-1);
       if (last && distance(last, point) < MIN_POINT_DISTANCE) return previous;
 
-      const updated = { ...current, points: [...current.points, point] };
-      return [...previous.slice(0, -1), updated];
+      return [...previous.slice(0, -1), { ...current, points: [...current.points, point] }];
     });
   };
 
-  const endStroke = () => {
-    drawing.current = false;
+  const handlePointerUp = () => {
+    dragHandle.current = null;
+    brushing.current = false;
+
+    if (rectDraft) {
+      const candidate = rectDraft;
+      setRectDraft(null);
+      // Ignore an accidental click that produced no area.
+      if (
+        Math.abs(candidate.to.x - candidate.from.x) >= 0.002 &&
+        Math.abs(candidate.to.y - candidate.from.y) >= 0.002
+      ) {
+        setRegions((previous) => [...previous, candidate]);
+      }
+    }
   };
 
-  const painted = hasMaskContent(strokes);
+  const undo = () => {
+    if (draft) {
+      setDraft((current) => {
+        const next = current?.slice(0, -1) ?? [];
+        return next.length > 0 ? next : null;
+      });
+      return;
+    }
+    setRegions((previous) => previous.slice(0, -1));
+  };
+
+  const clearAll = () => {
+    setRegions([]);
+    setDraft(null);
+    setDraftHover(null);
+    setRectDraft(null);
+  };
+
+  const selected = useMemo(() => hasMaskContent(regions), [regions]);
   const maskRequired = op === 'inpaint';
-  const canApply = prompt.trim().length > 0 && (!maskRequired || painted) && !busy && !preparing;
+  const nothingToUndo = !draft && regions.length === 0;
+  const canApply = prompt.trim().length > 0 && (!maskRequired || selected) && !busy && !preparing;
 
   const handleApply = async () => {
     if (!canApply) return;
@@ -163,21 +304,20 @@ export default function MaskEditor({
     try {
       const [image, mask] = await Promise.all([
         imageFieldValue(src),
-        painted
-          ? strokesToMaskBlob(strokes, natural.width, natural.height)
+        selected
+          ? regionsToMaskBlob(regions, natural.width, natural.height)
           : Promise.resolve(null),
       ]);
       onApply({ op, prompt: prompt.trim(), image, mask });
     } catch (cause) {
-      onError(
-        cause instanceof Error ? cause.message : 'Could not prepare the mask for sending.',
-      );
+      onError(cause instanceof Error ? cause.message : 'Could not prepare the mask for sending.');
     } finally {
       setPreparing(false);
     }
   };
 
   const working = busy || preparing;
+  const regionCount = regions.filter((region) => region.mode === 'paint').length;
 
   return (
     <div
@@ -221,11 +361,16 @@ export default function MaskEditor({
               />
               <canvas
                 ref={canvasRef}
+                // Focusable so the keyboard shortcuts below are reachable
+                // without a pointer, and so clicking the canvas moves focus out
+                // of the instruction field (where Enter belongs to the textarea).
+                tabIndex={0}
+                aria-label="Selection canvas. Click to place polygon corners; Enter closes the shape, Backspace removes the last corner."
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
-                onPointerUp={endStroke}
-                onPointerLeave={endStroke}
-                onPointerCancel={endStroke}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onDoubleClick={() => draft && commitDraft()}
                 style={{
                   width: box.width || undefined,
                   height: box.height || undefined,
@@ -260,53 +405,96 @@ export default function MaskEditor({
             </section>
 
             <section className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="label" id="brush-label">
-                  Brush
-                </h3>
-                <span className="font-mono text-[12px] text-ink">
-                  {Math.round(brush * 100)}%
-                </span>
+              <h3 className="label">Selection tool</h3>
+              <div className="flex flex-wrap gap-2">
+                {TOOLS.map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    className="pill"
+                    data-active={tool === candidate}
+                    aria-pressed={tool === candidate}
+                    disabled={working}
+                    title={TOOL_HINTS[candidate]}
+                    onClick={() => {
+                      if (draft) commitDraft();
+                      setTool(candidate);
+                    }}
+                  >
+                    {TOOL_LABELS[candidate]}
+                  </button>
+                ))}
               </div>
-              <input
-                type="range"
-                className="slider"
-                min={BRUSH_MIN}
-                max={BRUSH_MAX}
-                step={0.005}
-                value={brush}
-                disabled={working}
-                aria-labelledby="brush-label"
-                onChange={(event) => setBrush(Number(event.target.value))}
-              />
-              <div className="flex flex-wrap gap-2 pt-1">
+              <p className="text-[12px] text-muted">{TOOL_HINTS[tool]}</p>
+            </section>
+
+            {tool === 'brush' && (
+              <section className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="label" id="brush-label">
+                    Brush size
+                  </h3>
+                  <span className="font-mono text-[12px] text-ink">
+                    {Math.round(brush * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  className="slider"
+                  min={BRUSH_MIN}
+                  max={BRUSH_MAX}
+                  step={0.005}
+                  value={brush}
+                  disabled={working}
+                  aria-labelledby="brush-label"
+                  onChange={(event) => setBrush(Number(event.target.value))}
+                />
+              </section>
+            )}
+
+            <section className="flex flex-col gap-2">
+              <h3 className="label">Mode</h3>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="pill"
+                  data-active={!erasing}
+                  aria-pressed={!erasing}
+                  disabled={working}
+                  onClick={() => setErasing(false)}
+                >
+                  Add
+                </button>
                 <button
                   type="button"
                   className="pill"
                   data-active={erasing}
                   aria-pressed={erasing}
                   disabled={working}
-                  onClick={() => setErasing((previous) => !previous)}
+                  onClick={() => setErasing(true)}
                 >
-                  Eraser
+                  Subtract
                 </button>
                 <button
                   type="button"
                   className="pill"
-                  disabled={working || strokes.length === 0}
-                  onClick={() => setStrokes((previous) => previous.slice(0, -1))}
+                  disabled={working || nothingToUndo}
+                  onClick={undo}
                 >
                   Undo
                 </button>
                 <button
                   type="button"
                   className="pill"
-                  disabled={working || strokes.length === 0}
-                  onClick={() => setStrokes([])}
+                  disabled={working || (nothingToUndo && !rectDraft)}
+                  onClick={clearAll}
                 >
                   Clear
                 </button>
               </div>
+              <p className="text-[12px] text-muted">
+                Subtract cuts a shape back out — a window out of a facade selection, say.
+              </p>
             </section>
 
             <section className="flex flex-col gap-2">
@@ -335,24 +523,29 @@ export default function MaskEditor({
             )}
 
             <div className="mt-auto flex flex-col gap-2">
-              <button type="button" onClick={handleApply} disabled={!canApply} className="btn-primary">
-                <span className="block">
-                  {working ? 'Working…' : EDIT_OP_LABELS[op]}
-                </span>
+              <button
+                type="button"
+                onClick={handleApply}
+                disabled={!canApply}
+                className="btn-primary"
+              >
+                <span className="block">{working ? 'Working…' : EDIT_OP_LABELS[op]}</span>
                 <span className="mt-0.5 block font-mono text-[11px] font-normal opacity-80">
                   {working
                     ? 'sending to provider'
-                    : painted
-                      ? `masked · ${natural.width}×${natural.height}`
-                      : 'no mask painted'}
+                    : selected
+                      ? `${regionCount} region${regionCount === 1 ? '' : 's'} · ${natural.width}×${natural.height}`
+                      : 'nothing selected'}
                 </span>
               </button>
               <p className="text-[12px] text-muted">
-                {maskRequired && !painted
-                  ? 'Paint over the area you want changed to continue.'
-                  : !painted
-                    ? 'Without a mask, placement comes from your wording alone.'
-                    : 'White in the mask marks what changes; everything else is kept.'}
+                {draft
+                  ? 'Close the shape to include it — click the first corner, double-click, or press Enter.'
+                  : maskRequired && !selected
+                    ? 'Select the area you want changed to continue.'
+                    : !selected
+                      ? 'Without a selection, placement comes from your wording alone.'
+                      : 'White in the mask marks what changes; everything else is kept.'}
               </p>
             </div>
           </aside>

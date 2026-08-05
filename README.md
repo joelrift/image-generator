@@ -77,21 +77,35 @@ lib/
 
 ### Region editor
 
-Select a variation in the gallery, then **Edit region**. Paint over an area and
-pick a branch: *Change this* (mask-based inpaint) or *Add something* (localized
-insertion, where a mask is optional because the model can place from language
-alone). Brush size, eraser, undo and clear are there; Escape closes.
+Select a variation in the gallery, then **Edit region**. Mark an area, then pick a
+branch: *Change this* (mask-based inpaint) or *Add something* (localized
+insertion, where a selection is optional because the model can place from language
+alone).
+
+Selection is **geometric by default**, because architectural subjects are
+polygonal — a facade plane, a window reveal, a roof pitch:
+
+- **Polygon** — click each corner, drag a corner to adjust it, close by clicking
+  the first corner, double-clicking, or pressing Enter. Backspace drops the last
+  corner. The shape only counts once closed.
+- **Rectangle** — drag a box. Windows, doors, signs, a parked car.
+- **Brush** — freehand, for organic edges: planting, sky, water.
+
+Each shape is **Add** or **Subtract**, so you can select a whole facade and then
+cut the windows back out of it. Undo steps back one corner while drafting, one
+shape otherwise. Escape cancels an in-progress shape first and only then closes
+the dialog.
 
 Three details that are load-bearing:
 
-- **Strokes are stored in normalised coordinates** (0..1, radius as a fraction of
-  width). One stroke list renders to the on-screen overlay, to a
-  full-resolution export mask, and again after a resize — without ever rescaling
-  stored points. Undo is a `pop`.
-- **The image is never drawn into the stroke canvas.** The overlay holds brush
-  marks only and the export mask is rendered separately at natural resolution, so
-  the canvas can't be tainted no matter where the render came from, and the
-  exported PNG stays strictly two-tone (white = edit, black = keep).
+- **All geometry is stored normalised** (0..1, brush radius as a fraction of
+  width). One region list renders to the on-screen overlay, to a full-resolution
+  export mask, and again after a resize — without ever rescaling stored geometry.
+- **The image is never drawn into the overlay canvas.** It carries selection
+  graphics only, and the export mask renders separately at natural resolution — so
+  the canvas can't be tainted no matter where the render came from, the exported
+  PNG stays strictly two-tone (white = edit, black = keep), and handles and
+  dashed guides never leak into the mask.
 - **Results are appended, never substituted.** An edit becomes a new run in the
   gallery, so it can itself be edited and nothing the user liked is lost.
 
@@ -161,10 +175,16 @@ the 501 path with `RENDER_PROVIDER=fal`, and validation rejections for missing
 prompt/image/mask, unknown control type, out-of-range strength, non-image upload,
 bad variant count, `scale=3`), plus two Playwright passes — generation (upload →
 preset switching → generate → selection, no horizontal overflow at 390/768/1440)
-and the region editor (mask required for *Change this* but optional for *Add
-something*, undo/clear, mask exported as a PNG at the image's natural resolution,
-source rasterised to PNG rather than SVG, results appended rather than replacing
-the original, Escape closes). No console errors in either.
+and the region editor. The editor pass reads the overlay canvas back pixel by
+pixel, so the geometry is checked rather than assumed: a polygon fills inside and
+not outside, an open shape doesn't count as a selection, Subtract cuts a hole that
+Undo restores, a dragged corner moves the geometry, and Enter commits a shape
+(distinguished from a draft fill by alpha, since both are non-zero). Plus: mask
+required for *Change this* but optional for *Add something*, the mask exported as
+a PNG at the image's natural resolution, the source rasterised to PNG rather than
+SVG, no `mask` field when nothing is selected, results appended rather than
+replacing the original, and Escape cancelling a shape before closing the dialog.
+No console errors in either pass.
 
 There is no test suite in the repo yet. Worth adding with Phase 2, when there is
 provider-mapping logic whose regressions would be silent — `lib/mask.ts` is
