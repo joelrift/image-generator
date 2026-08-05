@@ -10,9 +10,9 @@ import type { ControlType, InputType, StylePreset } from '@/lib/providers/types'
 import { ASPECTS, ASPECT_KEYS, type AspectKey } from '@/lib/studio';
 
 const STYLE_LABELS: Record<StylePreset, string> = {
-  realistic: 'Fotorealistisk',
-  watercolor: 'Akvarell',
-  vector: 'Vektor',
+  realistic: 'Photorealistic',
+  watercolor: 'Watercolour',
+  vector: 'Vector',
 };
 
 const STYLES = Object.keys(STYLE_LABELS) as StylePreset[];
@@ -56,7 +56,7 @@ export default function StyleControls({
   return (
     <>
       <section className="flex flex-col gap-2">
-        <h2 className="label">Stil</h2>
+        <h2 className="label">Style</h2>
         <div className="flex flex-wrap gap-2">
           {STYLES.map((preset) => (
             <button
@@ -75,7 +75,7 @@ export default function StyleControls({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="label">Strukturmetode</h2>
+        <h2 className="label">Structure method</h2>
         <div className="flex flex-wrap gap-2">
           {controlTypes.map((type) => (
             <button
@@ -98,7 +98,7 @@ export default function StyleControls({
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="label" id="strength-label">
-            Følg underlaget
+            Follow the source
           </h2>
           <span className="font-mono text-[12px] text-ink">{controlStrength.toFixed(2)}</span>
         </div>
@@ -116,8 +116,8 @@ export default function StyleControls({
           onChange={(event) => onControlStrengthChange(Number(event.target.value))}
         />
         <div className="flex justify-between">
-          <span className="text-[11px] text-muted">Fri</span>
-          <span className="text-[11px] text-muted">Streng</span>
+          <span className="text-[11px] text-muted">Free</span>
+          <span className="text-[11px] text-muted">Strict</span>
         </div>
         <p id="strength-hint" className="text-[12px] text-muted">
           {describeControlStrength(controlStrength)}
@@ -145,7 +145,7 @@ export default function StyleControls({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="label">Antall varianter</h2>
+        <h2 className="label">Variations</h2>
         <div className="flex flex-wrap gap-2">
           {[1, 2, 4, 6].map((count) => (
             <button
@@ -162,7 +162,7 @@ export default function StyleControls({
           ))}
         </div>
         <p className="text-[12px] text-muted">
-          Forhåndsvisning i ~1K er billig. Oppskalering til 2K/4K kjøres bare på bildet du velger.
+          Previews at ~1K are cheap. Upscaling to 2K/4K runs only on the image you pick.
         </p>
       </section>
     </>

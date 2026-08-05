@@ -111,14 +111,14 @@ export default function Studio({ providerName }: { providerName: ProviderName })
         const message =
           payload && typeof payload === 'object' && 'error' in payload
             ? String((payload as { error: unknown }).error)
-            : `Generering feilet (HTTP ${response.status}).`;
+            : `Generation failed (HTTP ${response.status}).`;
         setError(message);
         return;
       }
 
       const result = payload as ImageResult;
       if (!result?.images?.length) {
-        setError('Leverandøren returnerte ingen bilder.');
+        setError('The provider returned no images.');
         return;
       }
 
@@ -138,7 +138,9 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       setSelected({ runId: run.id, index: 0 });
     } catch (cause) {
       setError(
-        cause instanceof Error ? `Nettverksfeil: ${cause.message}` : 'Ukjent feil under generering.',
+        cause instanceof Error
+          ? `Network error: ${cause.message}`
+          : 'Unknown error during generation.',
       );
     } finally {
       setIsGenerating(false);
@@ -161,11 +163,11 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     <div className="flex min-h-dvh flex-col">
       {providerName === 'mock' && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-accent-soft px-4 py-2 text-[13px] text-accent">
-          <strong className="font-semibold">Mock-modus</strong>
+          <strong className="font-semibold">Mock mode</strong>
           <span className="text-muted">
-            Ingen API-nøkkel funnet — bildene er plassholdere som viser parameterne som ble sendt.
-            Legg inn <code className="font-mono">FAL_KEY</code> i{' '}
-            <code className="font-mono">.env.local</code> for ekte generering.
+            No API key found — images are placeholders showing the parameters that were sent. Add{' '}
+            <code className="font-mono">FAL_KEY</code> to{' '}
+            <code className="font-mono">.env.local</code> for real generation.
           </span>
         </div>
       )}
@@ -173,10 +175,10 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       <header className="flex items-center justify-between border-b border-line px-4 py-3">
         <div className="flex items-baseline gap-3">
           <span className="label tracking-[0.14em] text-ink">RIFT RENDER STUDIO</span>
-          <span className="label">Visualisering med bevart geometri</span>
+          <span className="label">Visualisation with preserved geometry</span>
         </div>
         <span className="label">
-          leverandør: <span className="text-ink">{providerName}</span>
+          provider: <span className="text-ink">{providerName}</span>
         </span>
       </header>
 

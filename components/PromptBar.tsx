@@ -43,7 +43,7 @@ export default function PromptBar({
             disabled={isGenerating}
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Beskriv materialer, lys og stemning — f.eks. «trekledning i furu, overskyet ettermiddag, myk skygge»"
+            placeholder="Describe materials, light and mood — e.g. “pine cladding, overcast afternoon, soft shadows”"
             className="min-w-0 flex-1 resize-y rounded border border-line bg-surface px-3 py-2 text-[14px] text-ink outline-none placeholder:text-muted focus:border-accent disabled:opacity-60"
           />
           <button
@@ -52,19 +52,19 @@ export default function PromptBar({
             disabled={!canGenerate}
             className="btn-primary shrink-0 sm:w-56"
           >
-            <span className="block">{isGenerating ? 'Genererer…' : 'Generer'}</span>
+            <span className="block">{isGenerating ? 'Generating…' : 'Generate'}</span>
             <span className="mt-0.5 block font-mono text-[11px] font-normal opacity-80">
-              {isGenerating ? 'vent litt' : `${numImages} varianter · ~1K · ⌘↵`}
+              {isGenerating ? 'hold on' : `${numImages} variations · ~1K · ⌘↵`}
             </span>
           </button>
         </div>
 
         <p className="text-[12px] text-muted">
           {!hasInput
-            ? 'Last opp et underlag først.'
+            ? 'Upload a source image first.'
             : imageCount > 0
-              ? `${imageCount} bilder i denne økten. Historikken forsvinner ved refresh — lagring kommer i Fase 5.`
-              : 'Promptforbedring med språkmodell kommer i Fase 4.'}
+              ? `${imageCount} images in this session. History clears on refresh — storage arrives in Phase 5.`
+              : 'LLM prompt enrichment arrives in Phase 4.'}
         </p>
       </div>
     </div>

@@ -40,22 +40,22 @@ export function defaultControlStrength(inputType: InputType): number {
 
 /** Human-readable copy for the control-type picker. */
 export const CONTROL_TYPE_LABELS: Record<ControlType, string> = {
-  depth: 'Dybde',
-  softedge: 'Myk kant',
-  scribble: 'Skisse',
-  canny: 'Kantlinjer',
+  depth: 'Depth',
+  softedge: 'Soft edge',
+  scribble: 'Scribble',
+  canny: 'Canny edges',
 };
 
 export const CONTROL_TYPE_HINTS: Record<ControlType, string> = {
-  depth: 'Bevarer volum og romdybde — best for 3D-eksport fra Archicad.',
-  softedge: 'Følger myke konturer — tolerant for unøyaktige linjer.',
-  scribble: 'Løs tolkning av strektegning — best for frihåndsskisse.',
-  canny: 'Følger harde kanter strengt — kan bli stivt.',
+  depth: 'Preserves volume and spatial depth — best for 3D exports from Archicad.',
+  softedge: 'Follows soft contours — tolerant of imprecise lines.',
+  scribble: 'Loose reading of line work — best for freehand sketches.',
+  canny: 'Follows hard edges strictly — can look rigid.',
 };
 
 export const INPUT_TYPE_LABELS: Record<InputType, string> = {
-  sketch: 'Skisse',
-  screenshot: '3D-skjermbilde',
+  sketch: 'Sketch',
+  screenshot: '3D screenshot',
 };
 
 /**
@@ -63,8 +63,8 @@ export const INPUT_TYPE_LABELS: Record<InputType, string> = {
  * number means something to someone who has never touched ControlNet.
  */
 export function describeControlStrength(strength: number): string {
-  if (strength < 0.35) return 'Fri tolkning — geometrien kan endres mye';
-  if (strength < 0.6) return 'Balansert — hovedform beholdes';
-  if (strength < 0.85) return 'Tett på input — geometrien følges';
-  return 'Nær identisk geometri — kun materialer og lys endres';
+  if (strength < 0.35) return 'Free interpretation — geometry may change substantially';
+  if (strength < 0.6) return 'Balanced — overall form preserved';
+  if (strength < 0.85) return 'Close to the source — geometry followed';
+  return 'Near-identical geometry — only materials and light change';
 }

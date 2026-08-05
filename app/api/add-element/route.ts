@@ -11,7 +11,7 @@ import { readImageField, readString } from '@/lib/validate';
  * Expects multipart form data:
  *   image  (file, required)
  *   mask   (file, optional)  language alone is often enough here
- *   prompt (string, required) e.g. "legg til en pergola her"
+ *   prompt (string, required) e.g. "add a pergola here"
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {

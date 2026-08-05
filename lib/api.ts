@@ -23,6 +23,6 @@ export function errorResponse(error: unknown): NextResponse {
   const message =
     error instanceof Error && process.env.NODE_ENV !== 'production'
       ? error.message
-      : 'Noe gikk galt. Prøv igjen.';
+      : 'Something went wrong. Please try again.';
   return NextResponse.json({ error: message }, { status: 500 });
 }

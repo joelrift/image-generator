@@ -36,11 +36,11 @@ export default function ResultsGrid({
         <div className="panel max-w-md px-8 py-12 text-center">
           <p className="text-[15px] text-ink">
             {hasInput
-              ? 'Skriv en prompt og trykk Generer.'
-              : 'Last opp en skisse eller et 3D-skjermbilde for å begynne.'}
+              ? 'Write a prompt and press Generate.'
+              : 'Upload a sketch or 3D screenshot to begin.'}
           </p>
           <p className="mt-2 text-[13px] text-muted">
-            Geometrien i underlaget bevares. Hvor strengt styres av «Følg underlaget».
+            The geometry of the source is preserved. How strictly is set by “Follow the source”.
           </p>
         </div>
       </div>
@@ -52,7 +52,7 @@ export default function ResultsGrid({
       {isGenerating && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <span className="label">Genererer</span>
+            <span className="label">Generating</span>
             <span
               aria-hidden="true"
               className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent"
@@ -68,7 +68,7 @@ export default function ResultsGrid({
             ))}
           </div>
           <span className="sr-only" role="status">
-            Genererer {expectedCount} varianter
+            Generating {expectedCount} variations
           </span>
         </section>
       )}
@@ -82,7 +82,7 @@ export default function ResultsGrid({
             <span className="label shrink-0">
               {CONTROL_TYPE_LABELS[run.controlType]} · {run.controlStrength.toFixed(2)} ·{' '}
               {run.aspect} ·{' '}
-              {new Date(run.createdAt).toLocaleTimeString('nb-NO', {
+              {new Date(run.createdAt).toLocaleTimeString('en-GB', {
                 hour: '2-digit',
                 minute: '2-digit',
               })}
@@ -105,7 +105,7 @@ export default function ResultsGrid({
                     {/* eslint-disable-next-line @next/next/no-img-element -- provider returns data URIs and remote URLs; hosts are unknown until Phase 2 */}
                     <img
                       src={src}
-                      alt={`Variant ${index + 1} av ${run.images.length} for «${run.prompt}»`}
+                      alt={`Variation ${index + 1} of ${run.images.length} for “${run.prompt}”`}
                       loading="lazy"
                       style={{ aspectRatio: ratio }}
                       className="w-full object-cover"
@@ -116,10 +116,10 @@ export default function ResultsGrid({
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     {isSelected ? (
-                      <span className="text-accent">valgt · oppskalering i Fase 4</span>
+                      <span className="text-accent">selected · upscaling in Phase 4</span>
                     ) : (
                       <span className="text-muted opacity-0 transition-opacity group-hover:opacity-100">
-                        velg
+                        select
                       </span>
                     )}
                   </figcaption>

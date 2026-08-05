@@ -110,15 +110,15 @@ for a concrete reason:
    request that needs it.
 2. **`/` is `force-dynamic`.** Statically prerendering it baked the provider
    banner in at build time: setting `RENDER_PROVIDER=fal` and restarting still
-   showed "Mock-modus" while the API routes correctly used fal. Brief §6 promises
+   showed "Mock mode" while the API routes correctly used fal. Brief §6 promises
    restart-is-enough, so the page reads env per request.
 3. **Two files not in brief §7** — `lib/studio.ts` (shared types; importing them
    from `Studio.tsx` creates a cycle that throws at prerender) and
    `lib/validate.ts` (shared upload limits; five handlers duplicating them is how
    one ends up missing a check).
-4. **UI copy is Norwegian**, matching the other RIFT Lab tools; code, comments and
-   docs are English. Flagging it since the brief doesn't specify — the strings are
-   inline in `components/` if English is wanted instead.
+4. **UI copy is English**, and so is the prompt text `enrich-prompt` composes —
+   image models are trained predominantly on English captions, so the prompt sent
+   to the provider stays English regardless of what the interface says.
 
 ESLint is pinned to 9.x: the `eslint-plugin-react` bundled with
 `eslint-config-next` 16 still uses the pre-10 rule context API and crashes on

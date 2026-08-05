@@ -49,28 +49,30 @@ function expandWithTemplate(prompt: string, style: StylePreset, controlType: Con
 
   const mentions = (...terms: string[]) => terms.some((t) => lower.includes(t));
 
-  if (!mentions('lys', 'light', 'sol', 'sun', 'overcast', 'skumring', 'golden hour')) {
-    additions.push('naturlig dagslys, mykt overskyet lys');
+  if (!mentions('light', 'lighting', 'sun', 'overcast', 'dusk', 'golden hour', 'shadow')) {
+    additions.push('natural daylight, soft overcast light');
   }
-  if (!mentions('materiale', 'material', 'tre', 'betong', 'concrete', 'tegl', 'brick', 'glass')) {
-    additions.push('realistiske materialer med tydelig tekstur');
+  if (
+    !mentions('material', 'timber', 'wood', 'concrete', 'brick', 'glass', 'stone', 'steel', 'clad')
+  ) {
+    additions.push('realistic materials with visible texture');
   }
-  if (!mentions('mm', 'linse', 'lens', 'perspektiv', 'perspective', 'foto')) {
-    additions.push('arkitekturfoto, 24 mm, to-punkts perspektiv, vertikaler i lodd');
+  if (!mentions('mm', 'lens', 'perspective', 'photo', 'wide-angle', 'eye level')) {
+    additions.push('architectural photography, 24 mm, two-point perspective, verticals plumb');
   }
-  if (!mentions('kontekst', 'omgivelse', 'landskap', 'context', 'surrounding')) {
-    additions.push('troverdig nordisk kontekst og terreng');
+  if (!mentions('context', 'surrounding', 'landscape', 'site', 'street', 'terrain')) {
+    additions.push('believable Nordic context and terrain');
   }
 
   const styleClause: Record<StylePreset, string> = {
-    realistic: 'fotorealistisk arkitekturvisualisering, høy detalj',
-    watercolor: 'akvarell-illustrasjon, myke lag, synlig papirstruktur',
-    vector: 'rent vektor-diagram, flate flater, begrenset palett',
+    realistic: 'photorealistic architectural visualisation, high detail',
+    watercolor: 'watercolour illustration, soft washes, visible paper texture',
+    vector: 'clean vector diagram, flat planes, limited palette',
   };
   additions.push(styleClause[style]);
 
   if (controlType === 'depth') {
-    additions.push('behold eksakt geometri og kameravinkel fra referansen');
+    additions.push('keep the exact geometry and camera angle from the reference');
   }
 
   return [prompt.replace(/[.\s]+$/, ''), ...additions].join(', ');

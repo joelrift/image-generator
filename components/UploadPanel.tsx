@@ -38,12 +38,14 @@ export default function UploadPanel({
   const accept = useCallback(
     (candidate: File): boolean => {
       if (!ALLOWED_IMAGE_TYPES.includes(candidate.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
-        onError(`Filtypen ${candidate.type || 'ukjent'} støttes ikke. Bruk PNG, JPEG eller WebP.`);
+        onError(
+          `File type ${candidate.type || 'unknown'} is not supported. Use PNG, JPEG or WebP.`,
+        );
         return false;
       }
       if (candidate.size > MAX_UPLOAD_BYTES) {
         onError(
-          `Filen er ${(candidate.size / 1024 / 1024).toFixed(1)} MB. Maks er ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`,
+          `File is ${(candidate.size / 1024 / 1024).toFixed(1)} MB. The limit is ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`,
         );
         return false;
       }
@@ -88,7 +90,7 @@ export default function UploadPanel({
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="label">Underlag</h2>
+      <h2 className="label">Source image</h2>
 
       <div
         onDragOver={(event) => {
@@ -110,7 +112,7 @@ export default function UploadPanel({
             {/* eslint-disable-next-line @next/next/no-img-element -- blob: URL from the local file */}
             <img
               src={previewUrl}
-              alt={`Underlag: ${file?.name ?? 'opplastet bilde'}`}
+              alt={`Source: ${file?.name ?? 'uploaded image'}`}
               className="max-h-48 w-full rounded object-contain"
             />
             <div className="flex items-center justify-between gap-2">
@@ -126,7 +128,7 @@ export default function UploadPanel({
                 }}
                 className="text-[12px] text-muted underline hover:text-ink disabled:opacity-50"
               >
-                Fjern
+                Remove
               </button>
             </div>
           </div>
@@ -140,9 +142,9 @@ export default function UploadPanel({
             <span aria-hidden="true" className="text-xl leading-none text-muted">
               +
             </span>
-            <span className="text-[13px] text-ink">Slipp, klikk eller lim inn (Ctrl+V)</span>
+            <span className="text-[13px] text-ink">Drop, click or paste (Ctrl+V)</span>
             <span className="text-[12px] text-muted">
-              Skisse eller 3D-skjermbilde · PNG, JPEG, WebP
+              Sketch or 3D screenshot · PNG, JPEG, WebP
             </span>
           </button>
         )}
@@ -157,7 +159,7 @@ export default function UploadPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="label">Type underlag</span>
+        <span className="label">Source type</span>
         <div className="flex flex-wrap gap-2">
           {INPUT_TYPES.map((type) => (
             <button
@@ -174,7 +176,7 @@ export default function UploadPanel({
           ))}
         </div>
         <p className="text-[12px] text-muted">
-          Styrer forhåndsvalgt strukturmetode. Bytte her nullstiller metode og styrke.
+          Sets the default structure method. Switching resets method and strength.
         </p>
       </div>
     </section>
