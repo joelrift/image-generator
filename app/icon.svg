@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="4" fill="#a3690f" />
+  <!-- Two massing volumes and a horizon: the tool's subject, at 16px. -->
+  <path d="M6 22h7v-9l5-4v13h8" fill="none" stroke="#faf9f7" stroke-width="2"
+        stroke-linejoin="round" stroke-linecap="round" />
+  <line x1="5" y1="25.5" x2="27" y2="25.5" stroke="#faf9f7" stroke-width="1.5"
+        stroke-opacity="0.55" stroke-linecap="round" />
+</svg>

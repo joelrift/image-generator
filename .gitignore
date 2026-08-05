@@ -1,0 +1,25 @@
+node_modules/
+.next/
+out/
+build/
+
+# Local env — never commit real keys
+.env
+.env.local
+.env*.local
+
+# Editor / OS
+.DS_Store
+*.pem
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TS
+*.tsbuildinfo
+next-env.d.ts
