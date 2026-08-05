@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ProviderNotImplementedError } from './providers/types';
+import { ProviderNotImplementedError, ProviderRequestError } from './providers/types';
 import { HttpError } from './validate';
 
 /**
@@ -15,6 +15,18 @@ export function errorResponse(error: unknown): NextResponse {
   // phase that implements the missing piece, which is useful in the UI.
   if (error instanceof ProviderNotImplementedError) {
     return NextResponse.json({ error: error.message }, { status: 501 });
+  }
+
+  /*
+   * The upstream provider refused or failed the request. The message is written
+   * for the operator, so it is passed through even in production — "the provider
+   * rejected the API key" or "content policy blocked this prompt" is actionable
+   * in a way a generic failure is not. The detail, which can carry request
+   * internals, stays in the server log.
+   */
+  if (error instanceof ProviderRequestError) {
+    if (error.detail) console.error('[api] provider request failed:', error.detail);
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
   // Anything else is unexpected. Log the detail server-side, return something

@@ -27,10 +27,12 @@ To go live later (brief §6):
 
 ```bash
 cp .env.example .env.local
-# paste FAL_KEY, set RENDER_PROVIDER=fal, restart
+# paste BFL_API_KEY (or FAL_KEY), set RENDER_PROVIDER, restart
 ```
 
-Nothing else changes — no rebuild, no code edits.
+Nothing else changes — no rebuild, no code edits. See
+[Black Forest Labs](#black-forest-labs-unverified) below before the first run
+with a BFL key: that provider was written without access to the live API.
 
 ## Scripts
 
@@ -74,6 +76,55 @@ lib/
   validate.ts               upload limits and field validation
   api.ts                    one error funnel for all routes
 ```
+
+### Black Forest Labs (unverified)
+
+`lib/providers/bfl.ts` implements the full contract — generate, inpaint,
+add-element — against BFL's first-party FLUX API. **It has never run against the
+real service.** The endpoint paths and request field names come from prior
+knowledge rather than docs.bfl.ai, so budget for corrections on the first run.
+
+Everything likely to be wrong is either in the `CONFIG` block at the top of that
+file — where each value has an environment-variable override, so a fix needs no
+code change — or in the three `build*Body` functions, which are the only places
+request fields are named. Check in this order:
+
+1. endpoint paths (`BFL_ENDPOINT_DEPTH`, `_CANNY`, `_FILL`, `_KONTEXT`)
+2. field names in `buildControlBody` / `buildFillBody` / `buildKontextBody`
+3. the polling contract in `poll()` — status strings and where the result sits
+
+A 422 surfaces in the UI as "the provider rejected the request as malformed",
+with the upstream body excerpt in the server log — so a wrong field name reads as
+a clear error rather than a silent empty result. If width/height are the problem,
+`BFL_SEND_DIMENSIONS=0` drops them and the control image's aspect governs instead.
+
+Three decisions worth knowing, each forced by how BFL differs from fal:
+
+- **Results are inlined as data URIs, not passed through as links.** BFL returns
+  signed URLs that expire in minutes; forwarding one would give the user a gallery
+  whose thumbnails 404 mid-session, and would break editing a render later, since
+  the region editor forwards remote URLs to the provider assuming they stay
+  fetchable. This is an argument for pulling Phase 5's blob storage forward, and a
+  reason not to run large variation counts at 4K on this provider — the payloads
+  sit in memory.
+- **Soft-edge and scribble fall back to canny.** BFL ships depth and edge
+  conditioning only, so the two sketch presets have no equivalent. Canny is
+  stricter than a freehand sketch wants; the substitution is reported in `meta`
+  rather than applied silently.
+- **`addElement` routes on whether a selection exists.** With a mask, Fill is used
+  so the painted region is respected. Without one, Kontext places the element from
+  the instruction. Kontext accepts no mask, so sending a selection to it would
+  discard the user's work.
+- **`upscale` throws.** BFL has no upscaler endpoint. Either route upscaling to a
+  provider that has one, or re-run the keeper seed-locked at higher resolution —
+  seeds are returned in `meta` for exactly that. Faking it here would be worse
+  than the honest 501.
+
+Verified as far as it can be without the API: a stub implementing the assumed
+contract exercised request assembly, the poll loop, download-to-data-URI, the
+canny substitution, add-element routing, and every error mapping (bad key, no
+credit, 422, content moderation, success-with-no-image, response-with-no-job-id) —
+28 checks. None of that validates BFL's real field names.
 
 ### Region editor
 
@@ -135,8 +186,8 @@ provider call is ever made from the browser.
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1 | Scaffold, UI, MockProvider | **Done** |
-| 2 | `FalProvider.generate` — Flux + ControlNet | Interface + model constants scaffolded; methods throw a 501 naming the phase |
-| 3 | `MaskEditor`, inpaint, add-element | **UI done** and working against Mock; needs a provider (Flux Fill / Nano Banana Pro) behind it |
+| 2 | Real generation | **BFL implemented but unverified** (see above). fal still scaffolded — model constants in place, methods throw a 501 naming the phase |
+| 3 | `MaskEditor`, inpaint, add-element | **UI done**; BFL implements both branches (unverified), fal does not |
 | 4 | Style ref, pick-to-upscale, LLM enrichment | Selection state and the upscale route exist; `enrich-prompt` ships a rule-based stand-in |
 | 5 | Blob storage, history, auth | Not started — session history is in memory and clears on refresh |
 
@@ -192,9 +243,10 @@ already written to be unit-testable without a browser beyond the canvas calls.
 
 ## Next step
 
-Phase 2: implement `FalProvider.generate`. The region editor is already waiting on
-`inpaint` and `addElement` in the same file, so once a provider is live all three
-paths light up together. `lib/providers/fal.ts` has the model
+Run it with a real `BFL_API_KEY` and fix whatever the first request reveals. The
+whole flow is implemented, so this is a correction pass against real API
+responses, not new construction — and the failure modes are instrumented to say
+which field or endpoint to look at. `lib/providers/fal.ts` has the model
 constants, the intended request shape, and the ControlNet mapping documented in
 place. **Verify the model IDs against fal.ai's catalogue first** — the brief is
 explicit that they move fast, and the constants are overridable by env

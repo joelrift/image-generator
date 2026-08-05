@@ -75,7 +75,7 @@ export interface RenderProvider {
   upscale(input: UpscaleInput): Promise<ImageResult>;
 }
 
-export type ProviderName = 'mock' | 'fal' | 'replicate' | 'comfyui';
+export type ProviderName = 'mock' | 'fal' | 'bfl' | 'replicate' | 'comfyui';
 
 /**
  * Thrown by provider methods that are scaffolded but not yet wired to a real
@@ -89,5 +89,25 @@ export class ProviderNotImplementedError extends Error {
         `Unset RENDER_PROVIDER and the provider keys to fall back to Mock mode.`,
     );
     this.name = 'ProviderNotImplementedError';
+  }
+}
+
+/**
+ * An upstream provider refused or failed the request.
+ *
+ * Distinct from an unexpected crash: the message is written to be shown to the
+ * user, because for a single-operator internal tool "the provider rejected this
+ * prompt" is far more useful than a generic failure. Route handlers translate it
+ * to `status` verbatim.
+ */
+export class ProviderRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    /** Detail for the server log only — may contain request internals. */
+    readonly detail?: string,
+  ) {
+    super(message);
+    this.name = 'ProviderRequestError';
   }
 }

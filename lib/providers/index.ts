@@ -1,3 +1,4 @@
+import { BflProvider } from './bfl';
 import { ComfyUIProvider } from './comfyui';
 import { FalProvider } from './fal';
 import { MockProvider } from './mock';
@@ -30,6 +31,8 @@ function createProvider(): RenderProvider {
   switch (explicit) {
     case 'fal':
       return new FalProvider();
+    case 'bfl':
+      return new BflProvider();
     case 'replicate':
       return new ReplicateProvider();
     case 'comfyui':
@@ -42,12 +45,13 @@ function createProvider(): RenderProvider {
     default:
       throw new Error(
         `RENDER_PROVIDER="${explicit}" is not a known provider. ` +
-          `Use one of: fal, replicate, comfyui, mock (or leave it unset).`,
+          `Use one of: fal, bfl, replicate, comfyui, mock (or leave it unset).`,
       );
   }
 
   // Nothing pinned: infer from whichever key is present, else Mock so the app
   // is fully clickable with an empty .env.local (brief §6).
+  if (process.env.BFL_API_KEY) return new BflProvider();
   if (process.env.FAL_KEY) return new FalProvider();
   return new MockProvider();
 }
@@ -59,9 +63,16 @@ function createProvider(): RenderProvider {
  */
 export function resolveProviderName(): ProviderName {
   const explicit = process.env.RENDER_PROVIDER?.trim().toLowerCase();
-  if (explicit === 'fal' || explicit === 'replicate' || explicit === 'comfyui' || explicit === 'mock') {
+  if (
+    explicit === 'fal' ||
+    explicit === 'bfl' ||
+    explicit === 'replicate' ||
+    explicit === 'comfyui' ||
+    explicit === 'mock'
+  ) {
     return explicit;
   }
+  if (process.env.BFL_API_KEY) return 'bfl';
   return process.env.FAL_KEY ? 'fal' : 'mock';
 }
 
