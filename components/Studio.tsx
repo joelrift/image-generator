@@ -14,6 +14,7 @@ import type {
   ProviderName,
   StylePreset,
 } from '@/lib/providers/types';
+import { composePrompt, type SceneTags } from '@/lib/prompt-tags';
 import { upscaleImage, type UpscaleFactor } from '@/lib/upscale';
 import {
   ASPECTS,
@@ -55,8 +56,12 @@ export default function Studio({ providerName }: { providerName: ProviderName })
   const [numImages, setNumImages] = useState(4);
 
   const [prompt, setPrompt] = useState('');
+  const [sceneTags, setSceneTags] = useState<SceneTags>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string>('');
+
+  // Free text + selected helper chips → the prompt actually sent.
+  const composedPrompt = useMemo(() => composePrompt(prompt, sceneTags), [prompt, sceneTags]);
 
   const [runs, setRuns] = useState<RenderRun[]>([]);
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -115,10 +120,11 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     [handleInputTypeChange, replaceInputFile],
   );
 
-  const canGenerate = Boolean(file) && prompt.trim().length > 0 && !isGenerating;
+  // A prompt can come from free text, the helper chips, or both.
+  const canGenerate = Boolean(file) && composedPrompt.trim().length > 0 && !isGenerating;
 
   const handleGenerate = useCallback(async () => {
-    if (!file || !prompt.trim() || isGenerating) return;
+    if (!file || !composedPrompt.trim() || isGenerating) return;
 
     setIsGenerating(true);
     setError('');
@@ -126,7 +132,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     const { width, height } = ASPECTS[aspect];
     const form = new FormData();
     form.set('image', file);
-    form.set('prompt', prompt.trim());
+    form.set('prompt', composedPrompt);
     form.set('controlType', controlType);
     form.set('controlStrength', String(controlStrength));
     form.set('style', style);
@@ -153,7 +159,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
         id: runId(),
         op: 'generate',
         provider: providerName,
-        prompt: prompt.trim(),
+        prompt: composedPrompt,
         images: result.images,
         inputType,
         controlType,
@@ -176,13 +182,13 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     }
   }, [
     aspect,
+    composedPrompt,
     controlStrength,
     controlType,
     file,
     inputType,
     isGenerating,
     numImages,
-    prompt,
     providerName,
     style,
   ]);
@@ -385,12 +391,15 @@ export default function Studio({ providerName }: { providerName: ProviderName })
 
           <PromptBar
             prompt={prompt}
+            composedPrompt={composedPrompt}
+            tags={sceneTags}
             canGenerate={canGenerate}
             isGenerating={isGenerating}
             hasInput={Boolean(file)}
             numImages={numImages}
             imageCount={totalImages}
             onPromptChange={setPrompt}
+            onTagsChange={setSceneTags}
             onGenerate={handleGenerate}
           />
         </main>

@@ -142,6 +142,20 @@ canny substitution, add-element routing, and every error mapping (bad key, no
 credit, 422, content moderation, success-with-no-image, response-with-no-job-id) —
 28 checks. None of that validates BFL's real field names.
 
+### Prompt helper
+
+Above the prompt field, **Prompt helper** expands a chip grid — Lighting, Season,
+Weather, Setting, People — so common descriptors are one click instead of retyped
+each time (the pattern GoBANANAS uses). One choice per category; the selections
+compose onto the free text and the exact string sent is shown under the field.
+Chips alone are enough to generate — free text is optional.
+
+Two categories from the GoBANANAS panel are deliberately absent: **Style** (already
+the app's Style control) and **Camera angle** (the camera is fixed by the source
+and held by "Follow the source", so offering a reframe would promise what the tool
+won't do). The taxonomy and `composePrompt` live in `lib/prompt-tags.ts`, kept
+pure so composition is unit-testable.
+
 ### Upscale
 
 Select a result and use **Upscale 2× / 4×** in its caption. This is a client-side
