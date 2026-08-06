@@ -63,7 +63,15 @@ export default function ResultsGrid({
             <span className="label">Generating</span>
             <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div
+            className={`grid gap-3 ${
+              expectedCount === 1
+                ? 'grid-cols-1 max-w-4xl'
+                : expectedCount === 2
+                  ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl'
+                  : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+            }`}
+          >
             {Array.from({ length: expectedCount }, (_, i) => (
               <div
                 key={i}
@@ -91,7 +99,20 @@ export default function ResultsGrid({
          */
         const figureStyle = isGenerated
           ? { aspectRatio: run.aspect ? `${ASPECTS[run.aspect].width} / ${ASPECTS[run.aspect].height}` : pendingRatio }
-          : { maxHeight: '22rem' };
+          : { maxHeight: '40rem' };
+
+        /*
+         * Columns follow the variation count so a single render fills the space
+         * instead of sitting in one cell of a three-up grid. The max-width caps
+         * how large one or two images get on a very wide screen — a lone 1K
+         * preview blown up to 1600px only looks soft.
+         */
+        const gridClass =
+          run.images.length === 1
+            ? 'grid-cols-1 max-w-4xl'
+            : run.images.length === 2
+              ? 'grid-cols-1 sm:grid-cols-2 max-w-5xl'
+              : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3';
 
         return (
           <section key={run.id} className="flex flex-col gap-3">
@@ -118,7 +139,7 @@ export default function ResultsGrid({
               </span>
             </header>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className={`grid gap-3 ${gridClass}`}>
               {run.images.map((src, index) => {
                 const isSelected = selected?.runId === run.id && selected.index === index;
                 return (
