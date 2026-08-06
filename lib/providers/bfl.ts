@@ -3,6 +3,7 @@ import {
   ProviderRequestError,
   type AddElementInput,
   type ControlType,
+  type FinalizeInput,
   type GenerateInput,
   type ImageInput,
   type ImageResult,
@@ -557,6 +558,24 @@ export class BflProvider implements RenderProvider {
    */
   async upscale(_input: UpscaleInput): Promise<ImageResult> {
     throw new ProviderNotImplementedError(this.name, 'upscale', 'Phase 4');
+  }
+
+  /**
+   * Finishing pass via Kontext: re-render the composed image from the whole-image
+   * instruction the route built. Works, though Gemini is the intended finisher;
+   * this lets an all-BFL setup still offer a finalize step.
+   */
+  async finalize(input: FinalizeInput): Promise<ImageResult> {
+    const image = await toBase64(input.image);
+    const seed = Math.floor(Math.random() * 2_147_483_647);
+    const result = await this.run(
+      CONFIG.endpoints.kontext,
+      buildKontextBody({ prompt: input.prompt, image, seed }),
+    );
+    return {
+      images: [result],
+      meta: { provider: this.name, op: 'finalize', endpoint: CONFIG.endpoints.kontext, seed },
+    };
   }
 }
 

@@ -3,6 +3,7 @@ import {
   ProviderNotImplementedError,
   ProviderRequestError,
   type AddElementInput,
+  type FinalizeInput,
   type GenerateInput,
   type ImageInput,
   type ImageResult,
@@ -103,6 +104,15 @@ export class GeminiProvider implements RenderProvider {
   /** Gemini has no upscaler; resampling is handled client-side (Option A). */
   async upscale(_input: UpscaleInput): Promise<ImageResult> {
     throw new ProviderNotImplementedError(this.name, 'upscale', 'client-side resample');
+  }
+
+  /**
+   * The finishing pass — this is Gemini's intended role: re-render the composed
+   * image photorealistically from the whole-image instruction the route built.
+   */
+  async finalize(input: FinalizeInput): Promise<ImageResult> {
+    const image = await this.callEdit(input.prompt, input.image);
+    return { images: [image], meta: { provider: this.name, op: 'finalize', model: CONFIG.model } };
   }
 
   private async editResult(

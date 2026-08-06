@@ -6,6 +6,7 @@ import {
   type InpaintInput,
   type ProviderName,
   type RenderProvider,
+  type FinalizeInput,
   type UpscaleInput,
 } from './types';
 
@@ -48,5 +49,9 @@ export class ReplicateProvider implements RenderProvider {
 
   async upscale(_input: UpscaleInput): Promise<ImageResult> {
     throw new ProviderNotImplementedError(this.name, 'upscale', 'Phase 4');
+  }
+
+  async finalize(_input: FinalizeInput): Promise<ImageResult> {
+    throw new ProviderNotImplementedError(this.name, 'finalize', 'a later phase');
   }
 }

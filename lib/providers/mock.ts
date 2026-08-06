@@ -1,5 +1,6 @@
 import type {
   AddElementInput,
+  FinalizeInput,
   GenerateInput,
   ImageResult,
   InpaintInput,
@@ -114,6 +115,23 @@ export class MockProvider implements RenderProvider {
         }),
       ],
       meta: { provider: this.name, op: 'upscale', width, height },
+    };
+  }
+
+  async finalize(input: FinalizeInput): Promise<ImageResult> {
+    await latency(800, 1500);
+    return {
+      images: [
+        svgDataUri({
+          width: 1024,
+          height: 576,
+          seed: hash(`finalize:${input.prompt}`),
+          heading: 'FINALIZE',
+          prompt: 'photoreal finishing pass',
+          rows: [['mode', 'whole image, no mask']],
+        }),
+      ],
+      meta: { provider: this.name, op: 'finalize' },
     };
   }
 }

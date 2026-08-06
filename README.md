@@ -51,24 +51,33 @@ handlers never touch fal, Replicate, or ComfyUI directly — they call
 `getProvider(op)` and depend only on the interface. Swapping backends is one env
 var; adding one is a new file in `lib/providers/` plus a branch in `index.ts`.
 
-**Per-operation providers.** `getProvider('generate' | 'edit')` resolves a
-backend per stage, so the pipeline can split: a geometry-locked base render from
-one provider, edits from another. `RENDER_PROVIDER_GENERATE` and
-`RENDER_PROVIDER_EDIT` each override `RENDER_PROVIDER` (which itself falls back to
-inference from whichever key is set). The intended split is **BFL for generate +
-Gemini for edits** — Kontext holds the geometry, Gemini's instruction editing
-makes the changes:
+**Per-operation providers.** `getProvider('generate' | 'edit' | 'finalize')`
+resolves a backend per stage, so the pipeline splits by what each tool is best
+at. `RENDER_PROVIDER_GENERATE` / `_EDIT` / `_FINALIZE` each override
+`RENDER_PROVIDER` (which itself falls back to key inference). The intended
+three-stage pipeline:
+
+1. **Generate** — BFL Kontext (or fal Flux+ControlNet): the geometry-locked base.
+2. **Edit** — BFL/fal **Fill**: precise, mask-bounded add/remove. Fill honours a
+   hard mask, which is where the mask tool belongs.
+3. **Finalize** — **Gemini**: one whole-image photoreal finishing pass once the
+   composition is settled — unifying light and materials, blending edit seams.
 
 ```bash
-RENDER_PROVIDER_GENERATE=bfl
-RENDER_PROVIDER_EDIT=gemini
+RENDER_PROVIDER=bfl              # generate + edit
+RENDER_PROVIDER_FINALIZE=gemini  # finishing pass
 ```
 
+Finalize is optional polish and lands as its own run, so the pre-finish version
+is never lost. It is a re-render, not a filter, so it can nudge the composition
+slightly; the fixed instruction tells it to keep everything and improve only
+realism (`app/api/finalize/route.ts`).
+
 `GeminiProvider` (`lib/providers/gemini.ts`) is an instruction editor — no
-ControlNet and no hard mask (a painted selection is passed as a best-effort
-reference image, not a stencil). Written without live-API access, so a first-run
-400 means a field or the model id needs checking against ai.google.dev;
-everything likely to change sits in its `CONFIG` block or `buildEditBody`.
+ControlNet, no hard mask — which is why its role here is the whole-image finish
+rather than masked editing. Written without live-API access, so a first-run 400
+means a field or the model id needs checking against ai.google.dev; everything
+likely to change sits in its `CONFIG` block or `buildEditBody`.
 
 ```
 app/
@@ -78,6 +87,7 @@ app/
     generate/route.ts       POST → provider.generate    (ControlNet-conditioned)
     inpaint/route.ts        POST → provider.inpaint     ("change this")
     add-element/route.ts    POST → provider.addElement  ("add something")
+    finalize/route.ts       POST → provider.finalize    (photoreal finishing pass)
     upscale/route.ts        POST → provider.upscale
     enrich-prompt/route.ts  POST → prompt expansion
 components/

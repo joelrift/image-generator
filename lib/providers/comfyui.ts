@@ -6,6 +6,7 @@ import {
   type InpaintInput,
   type ProviderName,
   type RenderProvider,
+  type FinalizeInput,
   type UpscaleInput,
 } from './types';
 
@@ -50,5 +51,9 @@ export class ComfyUIProvider implements RenderProvider {
 
   async upscale(_input: UpscaleInput): Promise<ImageResult> {
     throw new ProviderNotImplementedError(this.name, 'upscale', 'a later phase');
+  }
+
+  async finalize(_input: FinalizeInput): Promise<ImageResult> {
+    throw new ProviderNotImplementedError(this.name, 'finalize', 'a later phase');
   }
 }

@@ -58,6 +58,16 @@ export interface UpscaleInput {
   scale: 2 | 4;
 }
 
+/**
+ * A whole-image finishing pass over a composed render — the last pipeline stage.
+ * `prompt` is the complete instruction (composed by the route), so a provider
+ * just re-renders image + instruction with no mask.
+ */
+export interface FinalizeInput {
+  image: ImageInput;
+  prompt: string;
+}
+
 export interface ImageResult {
   /** URLs or data URIs, one per generated variation. */
   images: string[];
@@ -78,6 +88,9 @@ export interface RenderProvider {
   addElement(input: AddElementInput): Promise<ImageResult>;
 
   upscale(input: UpscaleInput): Promise<ImageResult>;
+
+  /** Whole-image photoreal finishing pass — the last stage of the pipeline. */
+  finalize(input: FinalizeInput): Promise<ImageResult>;
 }
 
 export type ProviderName = 'mock' | 'fal' | 'bfl' | 'gemini' | 'replicate' | 'comfyui';

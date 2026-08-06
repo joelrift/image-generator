@@ -14,6 +14,7 @@ import type {
   ProviderName,
   StylePreset,
 } from '@/lib/providers/types';
+import { imageFieldValue } from '@/lib/mask';
 import { composePrompt, type SceneTags } from '@/lib/prompt-tags';
 import { upscaleImage, type UpscaleFactor } from '@/lib/upscale';
 import {
@@ -75,6 +76,8 @@ export default function Studio({ providerName }: { providerName: ProviderName })
 
   // Which selection is currently being upscaled (client-side resample).
   const [upscaling, setUpscaling] = useState<Selection | null>(null);
+  // Which selection is currently being finalized (Gemini finishing pass).
+  const [finalizing, setFinalizing] = useState<Selection | null>(null);
 
   /**
    * Object URLs are not garbage collected on their own, and they are created as
@@ -311,6 +314,64 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     [runs, upscaling],
   );
 
+  /**
+   * The last stage: send a settled composition to the finalize provider (Gemini
+   * by default) for a whole-image photoreal pass. Lands as its own run, so the
+   * pre-finish version is kept — the finish is an alternative, not a replacement.
+   */
+  const handleFinalize = useCallback(
+    async (selection: Selection) => {
+      if (finalizing) return;
+      const run = runs.find((candidate) => candidate.id === selection.runId);
+      const src = run?.images[selection.index];
+      if (!run || !src) return;
+
+      setFinalizing(selection);
+      setError('');
+
+      const form = new FormData();
+      try {
+        const image = await imageFieldValue(src);
+        form.set(
+          'image',
+          typeof image === 'string' ? image : new File([image], 'render.png', { type: 'image/png' }),
+        );
+
+        const response = await fetch('/api/finalize', { method: 'POST', body: form });
+        const payload: unknown = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setError(messageFrom(payload, response.status, 'Finalize failed'));
+          return;
+        }
+        const result = payload as ImageResult;
+        if (!result?.images?.length) {
+          setError('The provider returned no image.');
+          return;
+        }
+
+        const finalized: RenderRun = {
+          id: runId(),
+          op: 'finalize',
+          provider: run.provider,
+          prompt: run.prompt,
+          images: result.images,
+          sourceRunId: run.id,
+          createdAt: Date.now(),
+        };
+        setRuns((previous) => [finalized, ...previous]);
+        setSelected({ runId: finalized.id, index: 0 });
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? `Network error: ${cause.message}` : 'Unknown error during finalize.',
+        );
+      } finally {
+        setFinalizing(null);
+      }
+    },
+    [finalizing, runs],
+  );
+
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
 
   return (
@@ -374,9 +435,11 @@ export default function Studio({ providerName }: { providerName: ProviderName })
               aspect={aspect}
               hasInput={Boolean(file)}
               upscaling={upscaling}
+              finalizing={finalizing}
               onSelect={setSelected}
               onEditRegion={handleOpenEditor}
               onUpscale={handleUpscale}
+              onFinalize={handleFinalize}
             />
           </div>
 

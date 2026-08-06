@@ -17,7 +17,7 @@ export type { RenderProvider } from './types';
  *   RENDER_PROVIDER        (single provider for everything)
  *   inferred from whichever key is present, else Mock
  */
-export type ProviderOp = 'generate' | 'edit';
+export type ProviderOp = 'generate' | 'edit' | 'finalize';
 
 const cache = new Map<ProviderName, RenderProvider>();
 
@@ -68,10 +68,18 @@ function parseName(value: string | undefined): ProviderName | null {
  * a *missing* value (so the UI still renders) — only on an explicitly wrong one.
  */
 export function resolveProviderName(op: ProviderOp = 'generate'): ProviderName {
-  const perOp = parseName(
-    op === 'edit' ? process.env.RENDER_PROVIDER_EDIT : process.env.RENDER_PROVIDER_GENERATE,
-  );
+  const perOpEnv =
+    op === 'edit'
+      ? process.env.RENDER_PROVIDER_EDIT
+      : op === 'finalize'
+        ? process.env.RENDER_PROVIDER_FINALIZE
+        : process.env.RENDER_PROVIDER_GENERATE;
+  const perOp = parseName(perOpEnv);
   if (perOp) return perOp;
+
+  // Finalize is a photoreal finishing pass — prefer Gemini when a key exists,
+  // since that is the stage it is for, before falling back to the shared choice.
+  if (op === 'finalize' && process.env.GEMINI_API_KEY) return 'gemini';
 
   const shared = parseName(process.env.RENDER_PROVIDER);
   if (shared) return shared;

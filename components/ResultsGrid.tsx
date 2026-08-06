@@ -18,9 +18,11 @@ interface ResultsGridProps {
   aspect: AspectKey;
   hasInput: boolean;
   upscaling: Selection | null;
+  finalizing: Selection | null;
   onSelect: (selection: Selection) => void;
   onEditRegion: (selection: Selection) => void;
   onUpscale: (selection: Selection, scale: UpscaleFactor) => void;
+  onFinalize: (selection: Selection) => void;
 }
 
 /**
@@ -37,9 +39,11 @@ export default function ResultsGrid({
   aspect,
   hasInput,
   upscaling,
+  finalizing,
   onSelect,
   onEditRegion,
   onUpscale,
+  onFinalize,
 }: ResultsGridProps) {
   const pendingRatio = `${ASPECTS[aspect].width} / ${ASPECTS[aspect].height}`;
 
@@ -100,9 +104,11 @@ export default function ResultsGrid({
             ? run.dimensions
               ? `Upscaled · ${run.dimensions.width}×${run.dimensions.height}`
               : 'Upscaled'
-            : run.op === 'inpaint' || run.op === 'add-element'
-              ? EDIT_OP_LABELS[run.op]
-              : null;
+            : run.op === 'finalize'
+              ? 'Finalized'
+              : run.op === 'inpaint' || run.op === 'add-element'
+                ? EDIT_OP_LABELS[run.op]
+                : null;
 
         /*
          * A run is laid out on a fixed ratio only when we actually controlled
@@ -195,6 +201,19 @@ export default function ResultsGrid({
                               className="text-accent underline hover:no-underline"
                             >
                               Edit region
+                            </button>
+                            <span aria-hidden="true" className="text-line">
+                              |
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onFinalize({ runId: run.id, index })}
+                              disabled={finalizing !== null}
+                              className="text-accent underline hover:no-underline disabled:opacity-50"
+                            >
+                              {finalizing?.runId === run.id && finalizing.index === index
+                                ? 'Finalizing…'
+                                : 'Finalize'}
                             </button>
                             <span aria-hidden="true" className="text-line">
                               |

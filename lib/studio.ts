@@ -21,7 +21,7 @@ export type AspectKey = keyof typeof ASPECTS;
 export const ASPECT_KEYS = Object.keys(ASPECTS) as AspectKey[];
 
 /** Which operation produced a run. */
-export type RunOp = 'generate' | 'inpaint' | 'add-element' | 'upscale';
+export type RunOp = 'generate' | 'inpaint' | 'add-element' | 'upscale' | 'finalize';
 
 /** The two branches of the region editor, as the user meets them. */
 export const EDIT_OPS = ['inpaint', 'add-element'] as const;

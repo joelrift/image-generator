@@ -1,6 +1,7 @@
 import {
   ProviderNotImplementedError,
   type AddElementInput,
+  type FinalizeInput,
   type GenerateInput,
   type ImageResult,
   type InpaintInput,
@@ -77,5 +78,9 @@ export class FalProvider implements RenderProvider {
   /** Phase 4 — pick-to-upscale, the only paid step in the happy path. */
   async upscale(_input: UpscaleInput): Promise<ImageResult> {
     throw new ProviderNotImplementedError(this.name, 'upscale', 'Phase 4');
+  }
+
+  async finalize(_input: FinalizeInput): Promise<ImageResult> {
+    throw new ProviderNotImplementedError(this.name, 'finalize', 'a later phase');
   }
 }
