@@ -80,9 +80,26 @@ lib/
 ### Black Forest Labs (unverified)
 
 `lib/providers/bfl.ts` implements the full contract — generate, inpaint,
-add-element — against BFL's first-party FLUX API. **It has never run against the
-real service.** The endpoint paths and request field names come from prior
-knowledge rather than docs.bfl.ai, so budget for corrections on the first run.
+add-element — against BFL's first-party FLUX API.
+
+**Verified against a live account (Aug 2026):** the endpoint probe found
+`flux-kontext-pro` and `flux-pro-1.0-fill` live, and the standalone `depth`/`canny`
+ControlNet endpoints **retired (404)**. Two consequences:
+
+- `generate()` uses **Kontext** by default (`BFL_GENERATE_MODE=kontext`): it hands
+  the source image plus an instruction to Kontext, which re-renders while holding
+  the composition — the same "keep the geometry, change materials and light" the
+  ControlNet path aimed at, delivered more directly. The "Follow the source"
+  slider selects how firmly the instruction tells Kontext to hold the geometry
+  (in words, since Kontext exposes no conditioning scale). The structure-method
+  pills (Depth/Canny/…) no longer pick an endpoint in this mode.
+- The ControlNet path is preserved behind `BFL_GENERATE_MODE=control` for an
+  account or API version that exposes depth/canny again.
+
+Request field names were still written without live confirmation, so a first real
+run can still surface a 422 — which appears in the UI as "the provider rejected
+the request as malformed", with the upstream body excerpt in the server log
+naming the field.
 
 Everything likely to be wrong is either in the `CONFIG` block at the top of that
 file — where each value has an environment-variable override, so a fix needs no
@@ -107,14 +124,13 @@ Three decisions worth knowing, each forced by how BFL differs from fal:
   fetchable. This is an argument for pulling Phase 5's blob storage forward, and a
   reason not to run large variation counts at 4K on this provider — the payloads
   sit in memory.
-- **Soft-edge and scribble fall back to canny.** BFL ships depth and edge
-  conditioning only, so the two sketch presets have no equivalent. Canny is
-  stricter than a freehand sketch wants; the substitution is reported in `meta`
-  rather than applied silently.
 - **`addElement` routes on whether a selection exists.** With a mask, Fill is used
   so the painted region is respected. Without one, Kontext places the element from
   the instruction. Kontext accepts no mask, so sending a selection to it would
   discard the user's work.
+- **Partial failures don't sink the batch.** Variations run as `Promise.allSettled`,
+  so if one of N jobs fails the successful (paid) ones are still returned; only an
+  all-fail batch throws, surfacing the first real reason.
 - **`upscale` throws.** BFL has no upscaler endpoint. Either route upscaling to a
   provider that has one, or re-run the keeper seed-locked at higher resolution —
   seeds are returned in `meta` for exactly that. Faking it here would be worse

@@ -43,15 +43,29 @@ const CONFIG = {
   /** Regional hosts exist (api.us1/eu1.bfl.ai); override if latency matters. */
   baseUrl: (process.env.BFL_BASE_URL ?? 'https://api.bfl.ai').replace(/\/$/, ''),
 
+  /*
+   * How generate() conditions on the source image.
+   *
+   *   'kontext' (default) — instruction editing: hand Kontext the screenshot and
+   *     an instruction, and it re-renders while holding the composition. This is
+   *     the working path: BFL retired the standalone depth/canny control
+   *     endpoints (confirmed 404 against a live account, Aug 2026), so ControlNet
+   *     conditioning is no longer reachable through the public API.
+   *   'control' — the old ControlNet path, kept for an account or a future API
+   *     version that exposes depth/canny again. Set BFL_GENERATE_MODE=control and
+   *     point BFL_ENDPOINT_DEPTH / _CANNY at the live endpoints.
+   */
+  generateMode: (process.env.BFL_GENERATE_MODE ?? 'kontext') as 'kontext' | 'control',
+
   endpoints: {
-    /** Depth-conditioned generation — the 3D-screenshot path. */
-    depth: process.env.BFL_ENDPOINT_DEPTH ?? 'v1/flux-pro-1.0-depth',
-    /** Edge-conditioned generation — and the fallback for sketches. */
-    canny: process.env.BFL_ENDPOINT_CANNY ?? 'v1/flux-pro-1.0-canny',
-    /** Mask-based inpainting — the "change this" branch. */
-    fill: process.env.BFL_ENDPOINT_FILL ?? 'v1/flux-pro-1.0-fill',
-    /** Instruction editing — the "add something" branch when no mask is given. */
+    /** Instruction editing — generate (kontext mode), and add-element with no mask. */
     kontext: process.env.BFL_ENDPOINT_KONTEXT ?? 'v1/flux-kontext-pro',
+    /** Mask-based inpainting — the "change this" branch, and masked add-element. */
+    fill: process.env.BFL_ENDPOINT_FILL ?? 'v1/flux-pro-1.0-fill',
+    /** ControlNet depth — only used in 'control' mode; not live on the public API. */
+    depth: process.env.BFL_ENDPOINT_DEPTH ?? 'v1/flux-pro-1.0-depth',
+    /** ControlNet canny — only used in 'control' mode; not live on the public API. */
+    canny: process.env.BFL_ENDPOINT_CANNY ?? 'v1/flux-pro-1.0-canny',
   },
 
   /**
@@ -337,23 +351,87 @@ export class BflProvider implements RenderProvider {
   /* ------------------------------------------------------------ methods */
 
   async generate(input: GenerateInput): Promise<ImageResult> {
-    const count = Math.min(Math.max(Math.trunc(input.numImages ?? 4) || 1, 1), 8);
-    const controlBase64 = await toBase64(input.image);
-    const { endpoint, substituted } = this.controlEndpoint(input.controlType);
-    const prompt = stylePrompt(input);
-
     if (input.styleRefImage) {
       // Flux Redux / IP-Adapter is not exposed by the BFL API; Kontext or
       // multi-reference conditioning would be the route, and neither is wired.
       throw new ProviderNotImplementedError(this.name, 'generate (style reference)', 'Phase 4');
     }
 
+    return CONFIG.generateMode === 'control'
+      ? this.generateWithControl(input)
+      : this.generateWithKontext(input);
+  }
+
+  /**
+   * The working path: Kontext re-renders the source image from an instruction
+   * while holding its composition — which is exactly "keep the geometry, change
+   * the materials and light". Since Kontext preserves structure inherently,
+   * there is no ControlNet conditioning scale; the strength slider instead
+   * chooses how firmly the instruction tells Kontext to hold the geometry
+   * (`geometryClause`), which is expressed in language rather than an unverified
+   * numeric field.
+   */
+  private async generateWithKontext(input: GenerateInput): Promise<ImageResult> {
+    const count = Math.min(Math.max(Math.trunc(input.numImages ?? 4) || 1, 1), 8);
+    const image = await toBase64(input.image);
+    const instruction = buildKontextInstruction(input);
+
     // One image per request, so variations are N parallel jobs with distinct
-    // seeds. Seeds come back in meta: a keeper can then be re-run at higher
-    // resolution instead of upscaled, which suits BFL (it has no upscaler).
+    // seeds. Seeds come back in meta so a keeper can be re-run to refine it.
     const seeds = Array.from({ length: count }, () => Math.floor(Math.random() * 2_147_483_647));
 
-    const images = await Promise.all(
+    const results = await Promise.allSettled(
+      seeds.map((seed) =>
+        this.run(CONFIG.endpoints.kontext, buildKontextBody({ prompt: instruction, image, seed })),
+      ),
+    );
+
+    const images = results
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    // If every variation failed, surface the first real reason rather than an
+    // empty gallery. A partial success returns what came back — paid jobs are
+    // not thrown away because one sibling failed.
+    if (images.length === 0) {
+      const firstError = results.find((r) => r.status === 'rejected') as
+        | PromiseRejectedResult
+        | undefined;
+      throw firstError?.reason instanceof Error
+        ? firstError.reason
+        : new ProviderRequestError(502, `The provider returned no images. ${CHECK_HINT}`);
+    }
+
+    return {
+      images,
+      meta: {
+        provider: this.name,
+        mode: 'kontext',
+        endpoint: CONFIG.endpoints.kontext,
+        instruction,
+        requested: count,
+        returned: images.length,
+        style: input.style ?? 'realistic',
+        controlStrength: input.controlStrength,
+        seeds,
+      },
+    };
+  }
+
+  /**
+   * The old ControlNet path. Unreachable on the current public API (depth/canny
+   * are 404), kept behind BFL_GENERATE_MODE=control for an account or API version
+   * that exposes them again.
+   */
+  private async generateWithControl(input: GenerateInput): Promise<ImageResult> {
+    const count = Math.min(Math.max(Math.trunc(input.numImages ?? 4) || 1, 1), 8);
+    const controlBase64 = await toBase64(input.image);
+    const { endpoint, substituted } = this.controlEndpoint(input.controlType);
+    const prompt = stylePrompt(input);
+
+    const seeds = Array.from({ length: count }, () => Math.floor(Math.random() * 2_147_483_647));
+
+    const results = await Promise.allSettled(
       seeds.map((seed) =>
         this.run(
           endpoint,
@@ -369,10 +447,24 @@ export class BflProvider implements RenderProvider {
       ),
     );
 
+    const images = results
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    if (images.length === 0) {
+      const firstError = results.find((r) => r.status === 'rejected') as
+        | PromiseRejectedResult
+        | undefined;
+      throw firstError?.reason instanceof Error
+        ? firstError.reason
+        : new ProviderRequestError(502, `The provider returned no images. ${CHECK_HINT}`);
+    }
+
     return {
       images,
       meta: {
         provider: this.name,
+        mode: 'control',
         endpoint,
         requestedControlType: input.controlType,
         controlTypeSubstituted: substituted,
@@ -382,6 +474,8 @@ export class BflProvider implements RenderProvider {
         guidance: this.guidanceFor(input.controlStrength),
         controlStrength: input.controlStrength,
         style: input.style ?? 'realistic',
+        requested: count,
+        returned: images.length,
         seeds,
       },
     };
@@ -477,6 +571,38 @@ function stylePrompt(input: GenerateInput): string {
       ? 'watercolour illustration, soft washes, visible paper texture'
       : 'clean vector diagram, flat planes, limited palette';
   return `${input.prompt.replace(/[.\s]+$/, '')}, ${clause}`;
+}
+
+/**
+ * Compose the edit instruction Kontext receives in generate() (kontext mode).
+ *
+ * Kontext reads an instruction, not a scene description, so this is phrased as
+ * "turn this into … while keeping …". The strength slider selects how firmly the
+ * geometry is to be held — expressed in words because Kontext exposes no
+ * conditioning scale, and language is a field we know is accepted, unlike an
+ * unverified numeric one.
+ */
+function buildKontextInstruction(input: GenerateInput): string {
+  const style = input.style ?? 'realistic';
+  const styleClause: Record<NonNullable<GenerateInput['style']>, string> = {
+    realistic: 'a photorealistic architectural visualisation',
+    watercolor: 'a watercolour architectural illustration with soft washes',
+    vector: 'a clean flat vector diagram with a limited palette',
+  };
+
+  const strength = Math.min(Math.max(input.controlStrength, 0), 1);
+  const geometryClause =
+    strength >= 0.85
+      ? 'Preserve the exact geometry, proportions, and camera angle of the original; change only materials, lighting, and atmosphere.'
+      : strength >= 0.6
+        ? 'Keep the overall geometry, massing, and composition; refine materials and lighting.'
+        : strength >= 0.35
+          ? 'Use the original as strong guidance for the composition, but you may adjust details.'
+          : 'Loosely reinterpret the original; prioritise the description over exact structure.';
+
+  const description = input.prompt.replace(/[.\s]+$/, '');
+
+  return `Turn this into ${styleClause[style]}: ${description}. ${geometryClause}`;
 }
 
 function buildControlBody(args: {
