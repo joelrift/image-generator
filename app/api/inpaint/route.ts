@@ -8,7 +8,9 @@ import { readImageField, readString } from '@/lib/validate';
  *
  * Expects multipart form data:
  *   image  (file, required)  the finished render being edited
- *   mask   (file, required)  white = edit, black = keep (PNG from MaskEditor)
+ *   mask   (file, optional)  white = edit, black = keep (PNG from MaskEditor).
+ *                            With a mask the change is bounded to it; without
+ *                            one it applies from the instruction over the image.
  *   prompt (string, required)
  */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -16,11 +18,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const form = await request.formData();
 
     const image = await readImageField(form, 'image', { required: true });
-    const mask = await readImageField(form, 'mask', { required: true });
+    const mask = await readImageField(form, 'mask');
 
     const result = await getProvider().inpaint({
       image: image!,
-      mask: mask!,
+      mask,
       prompt: readString(form, 'prompt', { required: true, maxLength: 2000 }),
     });
 

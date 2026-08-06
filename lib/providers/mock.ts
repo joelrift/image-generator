@@ -69,8 +69,8 @@ export class MockProvider implements RenderProvider {
           heading: 'INPAINT — CHANGE THIS',
           prompt: input.prompt,
           rows: [
-            ['mode', 'mask-based edit'],
-            ['mask', 'received'],
+            ['mode', input.mask ? 'masked (region-bounded)' : 'instruction (whole image)'],
+            ['mask', input.mask ? 'received' : 'none'],
           ],
         }),
       ],

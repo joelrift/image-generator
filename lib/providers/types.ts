@@ -31,10 +31,15 @@ export interface GenerateInput {
   height?: number;
 }
 
-/** Mask-based edit — the "change this" branch of the region editor. */
+/**
+ * The "change this" branch of the region editor. The mask is optional: with one,
+ * the change is bounded to that region (Fill); without one, it is applied from
+ * the instruction over the whole image (Kontext), which follows a surface-wide
+ * material change better than a masked patch.
+ */
 export interface InpaintInput {
   image: ImageInput;
-  mask: ImageInput;
+  mask?: ImageInput;
   prompt: string;
 }
 

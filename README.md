@@ -144,13 +144,17 @@ credit, 422, content moderation, success-with-no-image, response-with-no-job-id)
 
 ### Region editor
 
-Select a variation in the gallery, then **Edit region**. Mark an area, then pick a
-branch: *Change this* (mask-based inpaint) or *Add something* (localized
-insertion, where a selection is optional because the model can place from language
-alone).
+Select a variation in the gallery, then **Edit region**, and pick a branch:
+*Change this* or *Add something*. Both take an **optional** selection: with one,
+the change is bounded to that region (routed to Fill); without one, it applies
+from the instruction across the whole image (routed to Kontext). Maskless is the
+better path for a surface-wide material change — Kontext follows "reclad the
+facade in white timber" over a whole surface better than a masked patch does; a
+selection is for localized work like swapping one window or removing a car.
 
-Selection is **geometric by default**, because architectural subjects are
-polygonal — a facade plane, a window reveal, a roof pitch:
+When a selection *is* drawn, it is **geometric by default**, because
+architectural subjects are polygonal — a facade plane, a window reveal, a roof
+pitch:
 
 - **Polygon** — click each corner, drag a corner to adjust it, close by clicking
   the first corner, double-clicking, or pressing Enter. Backspace drops the last
@@ -246,12 +250,18 @@ and the region editor. The editor pass reads the overlay canvas back pixel by
 pixel, so the geometry is checked rather than assumed: a polygon fills inside and
 not outside, an open shape doesn't count as a selection, Subtract cuts a hole that
 Undo restores, a dragged corner moves the geometry, and Enter commits a shape
-(distinguished from a draft fill by alpha, since both are non-zero). Plus: mask
-required for *Change this* but optional for *Add something*, the mask exported as
-a PNG at the image's natural resolution, the source rasterised to PNG rather than
-SVG, no `mask` field when nothing is selected, results appended rather than
-replacing the original, and Escape cancelling a shape before closing the dialog.
-No console errors in either pass.
+(distinguished from a draft fill by alpha, since both are non-zero). Plus: a
+prompt alone enables apply (maskless whole-image edit), the mask exported as a PNG
+at the image's natural resolution, the source rasterised to PNG rather than SVG,
+no `mask` field when nothing is selected, results appended rather than replacing
+the original, and Escape cancelling a shape before closing the dialog. No console
+errors in either pass.
+
+The BFL provider is exercised against a local stub of its submit → poll →
+download contract (30 checks): Kontext-mode generate, the strength→instruction
+mapping, masked edits routing to Fill with prompt-upsampling on, maskless edits
+routing to Kontext, and every error mapping. That verifies the client's side of
+the contract, not BFL's real field names.
 
 There is no test suite in the repo yet. Worth adding with Phase 2, when there is
 provider-mapping logic whose regressions would be silent — `lib/mask.ts` is

@@ -482,46 +482,50 @@ export class BflProvider implements RenderProvider {
   }
 
   async inpaint(input: InpaintInput): Promise<ImageResult> {
-    const [image, mask] = await Promise.all([toBase64(input.image), toBase64(input.mask)]);
-    const seed = Math.floor(Math.random() * 2_147_483_647);
+    return this.editRegion(input.image, input.mask, input.prompt, 'inpaint');
+  }
 
-    const result = await this.run(
-      CONFIG.endpoints.fill,
-      buildFillBody({ prompt: input.prompt, image, mask, seed }),
-    );
-
-    return {
-      images: [result],
-      meta: { provider: this.name, endpoint: CONFIG.endpoints.fill, op: 'inpaint', seed },
-    };
+  async addElement(input: AddElementInput): Promise<ImageResult> {
+    return this.editRegion(input.image, input.mask, input.prompt, 'addElement');
   }
 
   /**
-   * "Add something", routed by whether the user marked a region.
+   * Both edit branches share one routing rule: a mask means the change is
+   * spatially bounded, so Fill regenerates exactly that region; no mask means
+   * the change is described in words, so Kontext edits the whole image from the
+   * instruction. Kontext follows an instruction like "reclad the facade in white
+   * timber" across a whole surface better than a masked Fill patch does, which is
+   * why maskless editing routes there rather than being blocked.
    *
-   * With a selection, Fill respects it — which is what someone who just drew a
-   * polygon expects. Without one, Kontext places the element from the
-   * instruction alone. Kontext takes no mask, so sending a selection to it would
-   * discard the user's work silently.
+   * `inpaint` ("change this") and `addElement` ("add something") differ only in
+   * the verb the user writes; the mechanics are identical, so they share this.
+   *
+   * Prompt upsampling is on for edits: BFL expands a terse instruction ("white
+   * facade") into a fuller one, which is where edit adherence was weakest.
    */
-  async addElement(input: AddElementInput): Promise<ImageResult> {
-    const image = await toBase64(input.image);
+  private async editRegion(
+    image: ImageInput,
+    maskInput: ImageInput | undefined,
+    prompt: string,
+    op: 'inpaint' | 'addElement',
+  ): Promise<ImageResult> {
+    const imageB64 = await toBase64(image);
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
-    if (input.mask) {
-      const mask = await toBase64(input.mask);
+    if (maskInput) {
+      const mask = await toBase64(maskInput);
       const result = await this.run(
         CONFIG.endpoints.fill,
-        buildFillBody({ prompt: input.prompt, image, mask, seed }),
+        buildFillBody({ prompt, image: imageB64, mask, seed, promptUpsampling: true }),
       );
       return {
         images: [result],
         meta: {
           provider: this.name,
           endpoint: CONFIG.endpoints.fill,
-          op: 'addElement',
+          op,
           routedTo: 'fill',
-          reason: 'a selection was provided, so the masked area is respected',
+          reason: 'a selection was provided, so the masked area is regenerated',
           seed,
         },
       };
@@ -529,16 +533,16 @@ export class BflProvider implements RenderProvider {
 
     const result = await this.run(
       CONFIG.endpoints.kontext,
-      buildKontextBody({ prompt: input.prompt, image, seed }),
+      buildKontextBody({ prompt, image: imageB64, seed, promptUpsampling: true }),
     );
     return {
       images: [result],
       meta: {
         provider: this.name,
         endpoint: CONFIG.endpoints.kontext,
-        op: 'addElement',
+        op,
         routedTo: 'kontext',
-        reason: 'no selection, so placement comes from the instruction',
+        reason: 'no selection, so the change comes from the instruction over the whole image',
         seed,
       },
     };
@@ -636,13 +640,14 @@ function buildFillBody(args: {
   image: string;
   mask: string;
   seed: number;
+  promptUpsampling?: boolean;
 }): Record<string, unknown> {
   return {
     prompt: args.prompt,
     image: args.image,
     mask: args.mask,
     seed: args.seed,
-    prompt_upsampling: false,
+    prompt_upsampling: args.promptUpsampling ?? false,
     safety_tolerance: CONFIG.safetyTolerance,
     output_format: CONFIG.outputFormat,
   };
@@ -652,12 +657,13 @@ function buildKontextBody(args: {
   prompt: string;
   image: string;
   seed: number;
+  promptUpsampling?: boolean;
 }): Record<string, unknown> {
   return {
     prompt: args.prompt,
     input_image: args.image,
     seed: args.seed,
-    prompt_upsampling: false,
+    prompt_upsampling: args.promptUpsampling ?? false,
     safety_tolerance: CONFIG.safetyTolerance,
     output_format: CONFIG.outputFormat,
   };

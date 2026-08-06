@@ -293,9 +293,11 @@ export default function MaskEditor({
   };
 
   const selected = useMemo(() => hasMaskContent(regions), [regions]);
-  const maskRequired = op === 'inpaint';
   const nothingToUndo = !draft && regions.length === 0;
-  const canApply = prompt.trim().length > 0 && (!maskRequired || selected) && !busy && !preparing;
+  // A selection is never required now: with one the change is region-bounded,
+  // without one it applies from the instruction over the whole image. Only a
+  // prompt is mandatory.
+  const canApply = prompt.trim().length > 0 && !busy && !preparing;
 
   const handleApply = async () => {
     if (!canApply) return;
@@ -535,17 +537,15 @@ export default function MaskEditor({
                     ? 'sending to provider'
                     : selected
                       ? `${regionCount} region${regionCount === 1 ? '' : 's'} · ${natural.width}×${natural.height}`
-                      : 'nothing selected'}
+                      : 'whole image'}
                 </span>
               </button>
               <p className="text-[12px] text-muted">
                 {draft
                   ? 'Close the shape to include it — click the first corner, double-click, or press Enter.'
-                  : maskRequired && !selected
-                    ? 'Select the area you want changed to continue.'
-                    : !selected
-                      ? 'Without a selection, placement comes from your wording alone.'
-                      : 'White in the mask marks what changes; everything else is kept.'}
+                  : selected
+                    ? 'The selected area is regenerated; everything else is kept.'
+                    : 'No selection — the change applies from your instruction across the whole image. Select an area to bound it.'}
               </p>
             </div>
           </aside>

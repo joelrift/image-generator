@@ -35,7 +35,7 @@ export const EDIT_OP_LABELS: Record<EditOp, string> = {
 
 export const EDIT_OP_HINTS: Record<EditOp, string> = {
   inpaint:
-    'Mask-based edit. Select the area that should change — a facade plane, a window, a parked car.',
+    'Change what is there. Select an area to bound the change to it (a window, a parked car), or leave it unselected to restyle the whole image — better for a surface-wide material change.',
   'add-element':
     'Describes what to insert, matching perspective and lighting. A selection is optional: mark where it goes, or just say so in words.',
 };
