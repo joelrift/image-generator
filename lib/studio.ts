@@ -21,7 +21,7 @@ export type AspectKey = keyof typeof ASPECTS;
 export const ASPECT_KEYS = Object.keys(ASPECTS) as AspectKey[];
 
 /** Which operation produced a run. */
-export type RunOp = 'generate' | 'inpaint' | 'add-element';
+export type RunOp = 'generate' | 'inpaint' | 'add-element' | 'upscale';
 
 /** The two branches of the region editor, as the user meets them. */
 export const EDIT_OPS = ['inpaint', 'add-element'] as const;
@@ -62,8 +62,11 @@ export interface RenderRun {
   controlStrength?: number;
   style?: StylePreset;
 
-  /** Set for edit runs — the run whose image was edited. */
+  /** Set for edit and upscale runs — the run whose image this derives from. */
   sourceRunId?: string;
+
+  /** Set for upscale runs — the output pixel dimensions. */
+  dimensions?: { width: number; height: number };
 }
 
 /** Image selected for editing, and for the Phase 4 upscale pass. */

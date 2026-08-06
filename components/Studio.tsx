@@ -14,6 +14,7 @@ import type {
   ProviderName,
   StylePreset,
 } from '@/lib/providers/types';
+import { upscaleImage, type UpscaleFactor } from '@/lib/upscale';
 import {
   ASPECTS,
   EDIT_OP_LABELS,
@@ -66,6 +67,9 @@ export default function Studio({ providerName }: { providerName: ProviderName })
   const [editingRunId, setEditingRunId] = useState<string | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState('');
+
+  // Which selection is currently being upscaled (client-side resample).
+  const [upscaling, setUpscaling] = useState<Selection | null>(null);
 
   /**
    * Object URLs are not garbage collected on their own, and they are created as
@@ -264,6 +268,43 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     [editingRunId, providerName],
   );
 
+  /**
+   * Upscale the selected image by resampling it client-side (Option A). It makes
+   * the image bigger, not more detailed; the result lands as its own run so the
+   * original preview is untouched and the enlarged copy can be saved.
+   */
+  const handleUpscale = useCallback(
+    async (selection: Selection, scale: UpscaleFactor) => {
+      if (upscaling) return;
+      const run = runs.find((candidate) => candidate.id === selection.runId);
+      const src = run?.images[selection.index];
+      if (!run || !src) return;
+
+      setUpscaling(selection);
+      setError('');
+      try {
+        const { url, width, height } = await upscaleImage(src, scale);
+        const upscaled: RenderRun = {
+          id: runId(),
+          op: 'upscale',
+          provider: run.provider,
+          prompt: run.prompt,
+          images: [url],
+          sourceRunId: run.id,
+          dimensions: { width, height },
+          createdAt: Date.now(),
+        };
+        setRuns((previous) => [upscaled, ...previous]);
+        setSelected({ runId: upscaled.id, index: 0 });
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Could not upscale the image.');
+      } finally {
+        setUpscaling(null);
+      }
+    },
+    [runs, upscaling],
+  );
+
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
 
   return (
@@ -326,8 +367,10 @@ export default function Studio({ providerName }: { providerName: ProviderName })
               expectedCount={numImages}
               aspect={aspect}
               hasInput={Boolean(file)}
+              upscaling={upscaling}
               onSelect={setSelected}
               onEditRegion={handleOpenEditor}
+              onUpscale={handleUpscale}
             />
           </div>
 

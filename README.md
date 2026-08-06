@@ -142,6 +142,21 @@ canny substitution, add-element routing, and every error mapping (bad key, no
 credit, 422, content moderation, success-with-no-image, response-with-no-job-id) —
 28 checks. None of that validates BFL's real field names.
 
+### Upscale
+
+Select a result and use **Upscale 2× / 4×** in its caption. This is a client-side
+high-quality resample (`lib/upscale.ts`) — it makes the image bigger, not more
+detailed. No new texture is invented; a 4× of a ~1K preview is a clean, slightly
+soft enlargement, which is enough for a screen presentation or a PDF but not for
+a large print. The result lands as its own run (badged with its pixel size) and
+every result carries a **Download** link, so the enlarged copy can be saved.
+
+It runs in the browser rather than server-side on purpose: the image is already
+there as a data URI, it needs no API or dependency, and a 4K encode never touches
+a serverless function's timeout or memory. A true *creative* upscaler that adds
+detail (BFL has none; fal's clarity upscaler does) would be the provider path —
+`RenderProvider.upscale` is where it slots in, keyed behind a `FAL_KEY`.
+
 ### Region editor
 
 Select a variation in the gallery, then **Edit region**, and pick a branch:
@@ -208,7 +223,7 @@ provider call is ever made from the browser.
 | 1 | Scaffold, UI, MockProvider | **Done** |
 | 2 | Real generation | **BFL implemented but unverified** (see above). fal still scaffolded — model constants in place, methods throw a 501 naming the phase |
 | 3 | `MaskEditor`, inpaint, add-element | **UI done**; BFL implements both branches (unverified), fal does not |
-| 4 | Style ref, pick-to-upscale, LLM enrichment | Selection state and the upscale route exist; `enrich-prompt` ships a rule-based stand-in |
+| 4 | Style ref, pick-to-upscale, LLM enrichment | **Upscale done** (client resample, see below); style-ref and LLM enrichment pending (`enrich-prompt` ships a rule-based stand-in) |
 | 5 | Blob storage, history, auth | Not started — session history is in memory and clears on refresh |
 
 ## Decisions worth knowing

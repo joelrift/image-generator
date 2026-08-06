@@ -8,6 +8,7 @@ import {
   type RenderRun,
   type Selection,
 } from '@/lib/studio';
+import type { UpscaleFactor } from '@/lib/upscale';
 
 interface ResultsGridProps {
   runs: RenderRun[];
@@ -16,8 +17,10 @@ interface ResultsGridProps {
   expectedCount: number;
   aspect: AspectKey;
   hasInput: boolean;
+  upscaling: Selection | null;
   onSelect: (selection: Selection) => void;
   onEditRegion: (selection: Selection) => void;
+  onUpscale: (selection: Selection, scale: UpscaleFactor) => void;
 }
 
 /**
@@ -33,8 +36,10 @@ export default function ResultsGrid({
   expectedCount,
   aspect,
   hasInput,
+  upscaling,
   onSelect,
   onEditRegion,
+  onUpscale,
 }: ResultsGridProps) {
   const pendingRatio = `${ASPECTS[aspect].width} / ${ASPECTS[aspect].height}`;
 
@@ -87,10 +92,17 @@ export default function ResultsGrid({
       )}
 
       {runs.map((run) => {
-        // Narrowing form rather than a boolean flag, so `editOp` is typed EditOp
-        // where it is used and the badge lookup stays exhaustive.
-        const editOp = run.op === 'generate' ? null : run.op;
-        const isGenerated = editOp === null;
+        const isGenerated = run.op === 'generate';
+
+        // The chip shown before the prompt on non-generate runs.
+        const badgeLabel =
+          run.op === 'upscale'
+            ? run.dimensions
+              ? `Upscaled · ${run.dimensions.width}×${run.dimensions.height}`
+              : 'Upscaled'
+            : run.op === 'inpaint' || run.op === 'add-element'
+              ? EDIT_OP_LABELS[run.op]
+              : null;
 
         /*
          * A run is laid out on a fixed ratio only when we actually controlled
@@ -121,9 +133,9 @@ export default function ResultsGrid({
           <section key={run.id} className="flex flex-col gap-3">
             <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h2 className="min-w-0 flex-1 truncate text-[14px] text-ink" title={run.prompt}>
-                {editOp && (
+                {badgeLabel && (
                   <span className="mr-2 rounded-full border border-accent px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-[0.08em] text-accent">
-                    {EDIT_OP_LABELS[editOp]}
+                    {badgeLabel}
                   </span>
                 )}
                 {run.prompt}
@@ -163,7 +175,7 @@ export default function ResultsGrid({
                       {/* eslint-disable-next-line @next/next/no-img-element -- provider returns data URIs and remote URLs; hosts are unknown until Phase 2 */}
                       <img
                         src={src}
-                        alt={`${isGenerated ? 'Variation' : 'Edit'} ${index + 1} of ${run.images.length} for “${run.prompt}”`}
+                        alt={`${isGenerated ? 'Variation' : run.op === 'upscale' ? 'Upscaled' : 'Edit'} ${index + 1} of ${run.images.length} for “${run.prompt}”`}
                         loading="lazy"
                         style={figureStyle}
                         className={`w-full ${knowsAspect ? 'object-cover' : 'object-contain'}`}
@@ -174,22 +186,48 @@ export default function ResultsGrid({
                       <span className="font-mono text-muted">
                         {String(index + 1).padStart(2, '0')}
                       </span>
-                      {isSelected ? (
-                        <span className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onEditRegion({ runId: run.id, index })}
-                            className="text-accent underline hover:no-underline"
-                          >
-                            Edit region
-                          </button>
-                          <span className="text-muted">· upscale in Phase 4</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted opacity-0 transition-opacity group-hover:opacity-100">
-                          select
-                        </span>
-                      )}
+                      <span className="flex items-center gap-2">
+                        {isSelected && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEditRegion({ runId: run.id, index })}
+                              className="text-accent underline hover:no-underline"
+                            >
+                              Edit region
+                            </button>
+                            <span aria-hidden="true" className="text-line">
+                              |
+                            </span>
+                            <span className="text-muted">Upscale</span>
+                            {([2, 4] as const).map((factor) => (
+                              <button
+                                key={factor}
+                                type="button"
+                                onClick={() => onUpscale({ runId: run.id, index }, factor)}
+                                disabled={upscaling !== null}
+                                className="text-accent underline hover:no-underline disabled:opacity-50"
+                              >
+                                {upscaling?.runId === run.id && upscaling.index === index
+                                  ? `${factor}×…`
+                                  : `${factor}×`}
+                              </button>
+                            ))}
+                            <span aria-hidden="true" className="text-line">
+                              |
+                            </span>
+                          </>
+                        )}
+                        <a
+                          href={src}
+                          download={`rift-${run.op}-${index + 1}.${src.startsWith('data:image/svg') ? 'svg' : 'png'}`}
+                          className={`text-muted underline hover:text-ink ${
+                            isSelected ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'
+                          }`}
+                        >
+                          Download
+                        </a>
+                      </span>
                     </figcaption>
                   </figure>
                 );
