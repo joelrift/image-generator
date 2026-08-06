@@ -20,7 +20,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const image = await readImageField(form, 'image', { required: true });
     const mask = await readImageField(form, 'mask');
 
-    const result = await getProvider().addElement({
+    const result = await getProvider('edit').addElement({
       image: image!,
       mask,
       prompt: readString(form, 'prompt', { required: true, maxLength: 2000 }),

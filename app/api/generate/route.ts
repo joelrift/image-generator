@@ -27,7 +27,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const image = await readImageField(form, 'image', { required: true });
     const styleRefImage = await readImageField(form, 'styleRefImage');
 
-    const result = await getProvider().generate({
+    const result = await getProvider('generate').generate({
       image: image!,
       prompt: readString(form, 'prompt', { required: true, maxLength: 2000 }),
       controlType: readEnum(form, 'controlType', CONTROL_TYPES, 'depth'),

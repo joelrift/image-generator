@@ -80,7 +80,7 @@ export interface RenderProvider {
   upscale(input: UpscaleInput): Promise<ImageResult>;
 }
 
-export type ProviderName = 'mock' | 'fal' | 'bfl' | 'replicate' | 'comfyui';
+export type ProviderName = 'mock' | 'fal' | 'bfl' | 'gemini' | 'replicate' | 'comfyui';
 
 /**
  * Thrown by provider methods that are scaffolded but not yet wired to a real

@@ -48,8 +48,27 @@ with a BFL key: that provider was written without access to the live API.
 
 Every AI call goes through `RenderProvider` (`lib/providers/types.ts`). Route
 handlers never touch fal, Replicate, or ComfyUI directly — they call
-`getProvider()` and depend only on the interface. Swapping backends is one env
+`getProvider(op)` and depend only on the interface. Swapping backends is one env
 var; adding one is a new file in `lib/providers/` plus a branch in `index.ts`.
+
+**Per-operation providers.** `getProvider('generate' | 'edit')` resolves a
+backend per stage, so the pipeline can split: a geometry-locked base render from
+one provider, edits from another. `RENDER_PROVIDER_GENERATE` and
+`RENDER_PROVIDER_EDIT` each override `RENDER_PROVIDER` (which itself falls back to
+inference from whichever key is set). The intended split is **BFL for generate +
+Gemini for edits** — Kontext holds the geometry, Gemini's instruction editing
+makes the changes:
+
+```bash
+RENDER_PROVIDER_GENERATE=bfl
+RENDER_PROVIDER_EDIT=gemini
+```
+
+`GeminiProvider` (`lib/providers/gemini.ts`) is an instruction editor — no
+ControlNet and no hard mask (a painted selection is passed as a best-effort
+reference image, not a stencil). Written without live-API access, so a first-run
+400 means a field or the model id needs checking against ai.google.dev;
+everything likely to change sits in its `CONFIG` block or `buildEditBody`.
 
 ```
 app/

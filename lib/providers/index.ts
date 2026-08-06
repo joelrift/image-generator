@@ -1,6 +1,7 @@
 import { BflProvider } from './bfl';
 import { ComfyUIProvider } from './comfyui';
 import { FalProvider } from './fal';
+import { GeminiProvider } from './gemini';
 import { MockProvider } from './mock';
 import { ReplicateProvider } from './replicate';
 import type { ProviderName, RenderProvider } from './types';
@@ -8,75 +9,81 @@ import type { ProviderName, RenderProvider } from './types';
 export type { RenderProvider } from './types';
 
 /**
- * Provider selection (brief §4).
+ * Which stage of the pipeline a request belongs to. Generate and edit can use
+ * different backends — e.g. a geometry-locked base from BFL/fal, then edits
+ * through Gemini (brief §2 item 7). Resolution order for each op:
  *
- * Deviation from the brief's snippet, on purpose: the brief selects into a
- * module-level `const`, which would construct a provider the moment this module
- * is imported. Next evaluates modules during `next build`, so a missing key
- * would fail the build — and at runtime it would take down the whole app,
- * including pages that never render anything. Constructing lazily on first use
- * keeps a misconfigured env contained to the request that needs it.
+ *   RENDER_PROVIDER_<OP>   (per-op override, e.g. RENDER_PROVIDER_EDIT=gemini)
+ *   RENDER_PROVIDER        (single provider for everything)
+ *   inferred from whichever key is present, else Mock
  */
-let cached: RenderProvider | null = null;
+export type ProviderOp = 'generate' | 'edit';
 
-export function getProvider(): RenderProvider {
-  if (cached) return cached;
-  cached = createProvider();
-  return cached;
+const cache = new Map<ProviderName, RenderProvider>();
+
+function construct(name: ProviderName): RenderProvider {
+  const existing = cache.get(name);
+  if (existing) return existing;
+
+  const created =
+    name === 'fal'
+      ? new FalProvider()
+      : name === 'bfl'
+        ? new BflProvider()
+        : name === 'gemini'
+          ? new GeminiProvider()
+          : name === 'replicate'
+            ? new ReplicateProvider()
+            : name === 'comfyui'
+              ? new ComfyUIProvider()
+              : new MockProvider();
+
+  cache.set(name, created);
+  return created;
 }
 
-function createProvider(): RenderProvider {
-  const explicit = process.env.RENDER_PROVIDER?.trim().toLowerCase();
+/** The provider for a given op (defaults to generate). Constructed lazily. */
+export function getProvider(op: ProviderOp = 'generate'): RenderProvider {
+  return construct(resolveProviderName(op));
+}
 
-  switch (explicit) {
-    case 'fal':
-      return new FalProvider();
-    case 'bfl':
-      return new BflProvider();
-    case 'replicate':
-      return new ReplicateProvider();
-    case 'comfyui':
-      return new ComfyUIProvider();
-    case 'mock':
-      return new MockProvider();
-    case undefined:
-    case '':
-      break;
-    default:
-      throw new Error(
-        `RENDER_PROVIDER="${explicit}" is not a known provider. ` +
-          `Use one of: fal, bfl, replicate, comfyui, mock (or leave it unset).`,
-      );
-  }
+const KNOWN: readonly ProviderName[] = ['fal', 'bfl', 'gemini', 'replicate', 'comfyui', 'mock'];
 
-  // Nothing pinned: infer from whichever key is present, else Mock so the app
-  // is fully clickable with an empty .env.local (brief §6).
-  if (process.env.BFL_API_KEY) return new BflProvider();
-  if (process.env.FAL_KEY) return new FalProvider();
-  return new MockProvider();
+function parseName(value: string | undefined): ProviderName | null {
+  const trimmed = value?.trim().toLowerCase();
+  return trimmed && (KNOWN as readonly string[]).includes(trimmed)
+    ? (trimmed as ProviderName)
+    : trimmed
+      ? // A set-but-unknown value is a config error worth surfacing loudly.
+        (() => {
+          throw new Error(
+            `Provider "${trimmed}" is not known. Use one of: ${KNOWN.join(', ')} (or leave it unset).`,
+          );
+        })()
+      : null;
 }
 
 /**
- * Which backend a request would hit, without constructing it. Safe to call from
- * a server component to render the "Mock mode" banner — it never throws, so a
- * misconfigured env still renders the UI (with the banner telling the truth).
+ * Which backend a given op resolves to, without constructing it. Never throws on
+ * a *missing* value (so the UI still renders) — only on an explicitly wrong one.
  */
-export function resolveProviderName(): ProviderName {
-  const explicit = process.env.RENDER_PROVIDER?.trim().toLowerCase();
-  if (
-    explicit === 'fal' ||
-    explicit === 'bfl' ||
-    explicit === 'replicate' ||
-    explicit === 'comfyui' ||
-    explicit === 'mock'
-  ) {
-    return explicit;
-  }
+export function resolveProviderName(op: ProviderOp = 'generate'): ProviderName {
+  const perOp = parseName(
+    op === 'edit' ? process.env.RENDER_PROVIDER_EDIT : process.env.RENDER_PROVIDER_GENERATE,
+  );
+  if (perOp) return perOp;
+
+  const shared = parseName(process.env.RENDER_PROVIDER);
+  if (shared) return shared;
+
+  // Inference, in priority order, else Mock so an empty .env.local still works.
   if (process.env.BFL_API_KEY) return 'bfl';
-  return process.env.FAL_KEY ? 'fal' : 'mock';
+  if (process.env.FAL_KEY) return 'fal';
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  return 'mock';
 }
 
-/** Test seam: drop the cached instance so a changed env is picked up. */
+/** Test seam: drop cached instances so a changed env is picked up. */
 export function resetProviderCache(): void {
-  cached = null;
+  cache.clear();
 }
