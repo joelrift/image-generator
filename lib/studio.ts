@@ -1,4 +1,4 @@
-import type { ControlType, InputType, StylePreset } from './providers/types';
+import type { ControlType, InputType, ProviderName, StylePreset } from './providers/types';
 
 /**
  * Types and constants shared between Studio and its child panels.
@@ -49,6 +49,8 @@ export const EDIT_OP_PLACEHOLDERS: Record<EditOp, string> = {
 export interface RenderRun {
   id: string;
   op: RunOp;
+  /** Which backend produced it — drives how the run's metadata is shown. */
+  provider: ProviderName;
   prompt: string;
   images: string[];
   createdAt: number;

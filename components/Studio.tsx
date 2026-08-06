@@ -148,6 +148,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       const run: RenderRun = {
         id: runId(),
         op: 'generate',
+        provider: providerName,
         prompt: prompt.trim(),
         images: result.images,
         inputType,
@@ -178,6 +179,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     isGenerating,
     numImages,
     prompt,
+    providerName,
     style,
   ]);
 
@@ -240,6 +242,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
         const run: RenderRun = {
           id: runId(),
           op,
+          provider: providerName,
           prompt: instruction,
           images: result.images,
           sourceRunId: editingRunId ?? undefined,
@@ -258,7 +261,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
         setEditBusy(false);
       }
     },
-    [editingRunId],
+    [editingRunId, providerName],
   );
 
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
@@ -298,6 +301,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
             onError={setError}
           />
           <StyleControls
+            providerName={providerName}
             inputType={inputType}
             controlType={controlType}
             controlStrength={controlStrength}

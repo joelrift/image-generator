@@ -176,7 +176,7 @@ export default function UploadPanel({
           ))}
         </div>
         <p className="text-[12px] text-muted">
-          Sets the default structure method. Switching resets method and strength.
+          Sets sensible starting values below. Switching resets them.
         </p>
       </div>
     </section>

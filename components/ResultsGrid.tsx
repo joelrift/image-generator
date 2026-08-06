@@ -93,11 +93,14 @@ export default function ResultsGrid({
         const isGenerated = editOp === null;
 
         /*
-         * Generated runs are laid out on the ratio they were asked for. Edit
-         * results are not: the provider returns whatever size it returns, so
-         * they are contained rather than cropped to a ratio we would be guessing.
+         * A run is laid out on a fixed ratio only when we actually controlled
+         * that ratio — a Mock/control-mode generate. BFL generate (Kontext) and
+         * every edit return whatever dimensions the provider chose, so they are
+         * contained at natural aspect rather than cropped to a ratio we would be
+         * guessing at.
          */
-        const figureStyle = isGenerated
+        const knowsAspect = isGenerated && run.provider !== 'bfl';
+        const figureStyle = knowsAspect
           ? { aspectRatio: run.aspect ? `${ASPECTS[run.aspect].width} / ${ASPECTS[run.aspect].height}` : pendingRatio }
           : { maxHeight: '40rem' };
 
@@ -126,11 +129,14 @@ export default function ResultsGrid({
                 {run.prompt}
               </h2>
               <span className="label shrink-0">
-                {isGenerated && run.controlType && (
+                {isGenerated && knowsAspect && run.controlType && (
                   <>
                     {CONTROL_TYPE_LABELS[run.controlType]} ·{' '}
                     {run.controlStrength?.toFixed(2) ?? '—'} · {run.aspect} ·{' '}
                   </>
+                )}
+                {isGenerated && !knowsAspect && run.controlStrength !== undefined && (
+                  <>follow {run.controlStrength.toFixed(2)} · </>
                 )}
                 {new Date(run.createdAt).toLocaleTimeString('en-GB', {
                   hour: '2-digit',
@@ -160,7 +166,7 @@ export default function ResultsGrid({
                         alt={`${isGenerated ? 'Variation' : 'Edit'} ${index + 1} of ${run.images.length} for “${run.prompt}”`}
                         loading="lazy"
                         style={figureStyle}
-                        className={`w-full ${isGenerated ? 'object-cover' : 'object-contain'}`}
+                        className={`w-full ${knowsAspect ? 'object-cover' : 'object-contain'}`}
                       />
                     </button>
 

@@ -6,7 +6,7 @@ import {
   describeControlStrength,
   suggestedControlTypes,
 } from '@/lib/preprocess';
-import type { ControlType, InputType, StylePreset } from '@/lib/providers/types';
+import type { ControlType, InputType, ProviderName, StylePreset } from '@/lib/providers/types';
 import { ASPECTS, ASPECT_KEYS, type AspectKey } from '@/lib/studio';
 
 const STYLE_LABELS: Record<StylePreset, string> = {
@@ -18,6 +18,7 @@ const STYLE_LABELS: Record<StylePreset, string> = {
 const STYLES = Object.keys(STYLE_LABELS) as StylePreset[];
 
 interface StyleControlsProps {
+  providerName: ProviderName;
   inputType: InputType;
   controlType: ControlType;
   controlStrength: number;
@@ -37,6 +38,7 @@ interface StyleControlsProps {
  * produces Visoid's Sketch↔Volumetric spectrum (brief §2 item 3).
  */
 export default function StyleControls({
+  providerName,
   inputType,
   controlType,
   controlStrength,
@@ -52,6 +54,15 @@ export default function StyleControls({
 }: StyleControlsProps) {
   // Ordered by what suits the current input type; all options stay available.
   const controlTypes = suggestedControlTypes(inputType);
+
+  /*
+   * On BFL, generate runs through Kontext, which conditions on the whole image
+   * from an instruction: it takes no ControlNet method and follows the source
+   * image's own aspect. So the Structure-method and Format controls do nothing
+   * there, and showing them would claim an effect the output won't reflect. They
+   * stay for Mock and for a provider/mode that honours them.
+   */
+  const structureAndFormatApply = providerName !== 'bfl';
 
   return (
     <>
@@ -74,26 +85,28 @@ export default function StyleControls({
         </div>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="label">Structure method</h2>
-        <div className="flex flex-wrap gap-2">
-          {controlTypes.map((type) => (
-            <button
-              key={type}
-              type="button"
-              className="pill"
-              data-active={controlType === type}
-              aria-pressed={controlType === type}
-              disabled={disabled}
-              title={CONTROL_TYPE_HINTS[type]}
-              onClick={() => onControlTypeChange(type)}
-            >
-              {CONTROL_TYPE_LABELS[type]}
-            </button>
-          ))}
-        </div>
-        <p className="text-[12px] text-muted">{CONTROL_TYPE_HINTS[controlType]}</p>
-      </section>
+      {structureAndFormatApply && (
+        <section className="flex flex-col gap-2">
+          <h2 className="label">Structure method</h2>
+          <div className="flex flex-wrap gap-2">
+            {controlTypes.map((type) => (
+              <button
+                key={type}
+                type="button"
+                className="pill"
+                data-active={controlType === type}
+                aria-pressed={controlType === type}
+                disabled={disabled}
+                title={CONTROL_TYPE_HINTS[type]}
+                onClick={() => onControlTypeChange(type)}
+              >
+                {CONTROL_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12px] text-muted">{CONTROL_TYPE_HINTS[controlType]}</p>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-2">
@@ -124,25 +137,27 @@ export default function StyleControls({
         </p>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="label">Format</h2>
-        <div className="flex flex-wrap gap-2">
-          {ASPECT_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className="pill font-mono"
-              data-active={aspect === key}
-              aria-pressed={aspect === key}
-              disabled={disabled}
-              title={`${ASPECTS[key].width}×${ASPECTS[key].height}`}
-              onClick={() => onAspectChange(key)}
-            >
-              {key}
-            </button>
-          ))}
-        </div>
-      </section>
+      {structureAndFormatApply && (
+        <section className="flex flex-col gap-2">
+          <h2 className="label">Format</h2>
+          <div className="flex flex-wrap gap-2">
+            {ASPECT_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className="pill font-mono"
+                data-active={aspect === key}
+                aria-pressed={aspect === key}
+                disabled={disabled}
+                title={`${ASPECTS[key].width}×${ASPECTS[key].height}`}
+                onClick={() => onAspectChange(key)}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <h2 className="label">Variations</h2>
@@ -162,7 +177,9 @@ export default function StyleControls({
           ))}
         </div>
         <p className="text-[12px] text-muted">
-          Previews at ~1K are cheap. Upscaling to 2K/4K runs only on the image you pick.
+          {structureAndFormatApply
+            ? 'Previews at ~1K are cheap. Upscaling to 2K/4K runs only on the image you pick.'
+            : 'Generate several cheap previews, then refine the one you pick.'}
         </p>
       </section>
     </>
