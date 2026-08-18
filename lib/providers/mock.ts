@@ -41,6 +41,9 @@ export class MockProvider implements RenderProvider {
           ['variant', `${i + 1} / ${count}`],
           ['size', `${width}×${height}`],
           ...(input.styleRefImage ? ([['style ref', 'attached']] as [string, string][]) : []),
+          ...(input.materials?.length
+            ? ([['materials', `${input.materials.length} attached`]] as [string, string][])
+            : []),
         ],
       }),
     );
@@ -128,7 +131,12 @@ export class MockProvider implements RenderProvider {
           seed: hash(`finalize:${input.prompt}`),
           heading: 'FINALIZE',
           prompt: 'photoreal finishing pass',
-          rows: [['mode', 'whole image, no mask']],
+          rows: [
+            ['mode', 'whole image, no mask'],
+            ...(input.materials?.length
+              ? ([['materials', `${input.materials.length} attached`]] as [string, string][])
+              : []),
+          ],
         }),
       ],
       meta: { provider: this.name, op: 'finalize' },

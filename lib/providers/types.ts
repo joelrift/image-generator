@@ -19,6 +19,12 @@ export type InputType = 'sketch' | 'screenshot';
 /** An image on its way to a provider: raw bytes, a URL, or a data URI. */
 export type ImageInput = Buffer | string;
 
+/** A named material swatch used as a reference by providers that accept images. */
+export interface MaterialRef {
+  label: string;
+  image: ImageInput;
+}
+
 export interface GenerateInput {
   image: ImageInput; // sketch or 3D screenshot
   prompt: string;
@@ -26,6 +32,8 @@ export interface GenerateInput {
   controlStrength: number; // 0..1 (the "how strictly to follow the input" slider)
   style?: StylePreset;
   styleRefImage?: ImageInput; // optional (Redux / IP-Adapter), Phase 4
+  /** Material palette — names always reach the prompt; images used by multi-image providers. */
+  materials?: MaterialRef[];
   numImages?: number;
   width?: number;
   height?: number;
@@ -66,6 +74,8 @@ export interface UpscaleInput {
 export interface FinalizeInput {
   image: ImageInput;
   prompt: string;
+  /** Material swatches applied at the finishing pass by multi-image providers. */
+  materials?: MaterialRef[];
 }
 
 export interface ImageResult {

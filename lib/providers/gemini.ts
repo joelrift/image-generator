@@ -8,6 +8,7 @@ import {
   type ImageInput,
   type ImageResult,
   type InpaintInput,
+  type MaterialRef,
   type ProviderName,
   type RenderProvider,
   type UpscaleInput,
@@ -86,10 +87,16 @@ export class GeminiProvider implements RenderProvider {
     if (input.styleRefImage) {
       throw new ProviderNotImplementedError(this.name, 'generate (style reference)', 'Phase 4');
     }
-    const image = await this.callEdit(buildGenerateInstruction(input), input.image);
+    const materials = input.materials ?? [];
+    const image = await this.callEdit(buildGenerateInstruction(input), input.image, undefined, materials);
     return {
       images: [image],
-      meta: { provider: this.name, op: 'generate', model: CONFIG.model },
+      meta: {
+        provider: this.name,
+        op: 'generate',
+        model: CONFIG.model,
+        materials: materials.length,
+      },
     };
   }
 
@@ -111,8 +118,12 @@ export class GeminiProvider implements RenderProvider {
    * image photorealistically from the whole-image instruction the route built.
    */
   async finalize(input: FinalizeInput): Promise<ImageResult> {
-    const image = await this.callEdit(input.prompt, input.image);
-    return { images: [image], meta: { provider: this.name, op: 'finalize', model: CONFIG.model } };
+    const materials = input.materials ?? [];
+    const image = await this.callEdit(input.prompt, input.image, undefined, materials);
+    return {
+      images: [image],
+      meta: { provider: this.name, op: 'finalize', model: CONFIG.model, materials: materials.length },
+    };
   }
 
   private async editResult(
@@ -143,9 +154,10 @@ export class GeminiProvider implements RenderProvider {
     instruction: string,
     image: ImageInput,
     mask?: ImageInput,
+    materials: MaterialRef[] = [],
   ): Promise<string> {
     const url = `${CONFIG.baseUrl}/${CONFIG.apiVersion}/models/${CONFIG.model}:generateContent`;
-    const body = await buildEditBody(instruction, image, mask);
+    const body = await buildEditBody(instruction, image, mask, materials);
 
     let response: Response;
     try {
@@ -254,6 +266,7 @@ async function buildEditBody(
   instruction: string,
   image: ImageInput,
   mask?: ImageInput,
+  materials: MaterialRef[] = [],
 ): Promise<Record<string, unknown>> {
   const parts: Record<string, unknown>[] = [
     { text: instruction },
@@ -261,6 +274,20 @@ async function buildEditBody(
   ];
   if (mask) {
     parts.push({ inline_data: { mime_type: mimeOf(mask), data: await toBase64(mask) } });
+  }
+
+  /*
+   * Material swatches ride along as extra reference images. Each is introduced by
+   * a text part naming it, then its bytes, so the model can tie the name in the
+   * instruction to the pixels it should sample the material from.
+   */
+  for (const material of materials) {
+    const label = material.label.trim();
+    if (!label) continue;
+    parts.push({ text: `Material reference — "${label}":` });
+    parts.push({
+      inline_data: { mime_type: mimeOf(material.image), data: await toBase64(material.image) },
+    });
   }
 
   return {

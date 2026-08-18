@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MaskEditor, { type ApplyEditArgs } from './MaskEditor';
+import MaterialPalette from './MaterialPalette';
 import PromptBar from './PromptBar';
 import ResultsGrid from './ResultsGrid';
 import StyleControls from './StyleControls';
@@ -15,6 +16,7 @@ import type {
   StylePreset,
 } from '@/lib/providers/types';
 import { imageFieldValue } from '@/lib/mask';
+import { activeMaterials, materialsClause, type Material } from '@/lib/materials';
 import { composePrompt, type SceneTags } from '@/lib/prompt-tags';
 import { upscaleImage, type UpscaleFactor } from '@/lib/upscale';
 import {
@@ -38,6 +40,30 @@ function messageFrom(payload: unknown, status: number, fallback: string): string
   return `${fallback} (HTTP ${status}).`;
 }
 
+/** A base64 data URI → Blob, for sending palette swatches as file parts. */
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(',');
+  const mime = /data:([^;]+)/.exec(head)?.[1] ?? 'image/png';
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/** Append the active palette swatches (images + parallel labels) to a form. */
+function appendMaterials(form: FormData, materials: Material[]): void {
+  const active = activeMaterials(materials);
+  if (active.length === 0) return;
+  const labels: string[] = [];
+  active.forEach((material, index) => {
+    form.append('material', new File([dataUrlToBlob(material.dataUrl)], `material-${index}.png`, {
+      type: 'image/png',
+    }));
+    labels.push(material.label.trim());
+  });
+  form.set('materialLabels', JSON.stringify(labels));
+}
+
 /**
  * Holds the state the panels share. The brief lists the four panels but not a
  * parent for them; something has to own the shared state, and keeping page.tsx a
@@ -58,11 +84,15 @@ export default function Studio({ providerName }: { providerName: ProviderName })
 
   const [prompt, setPrompt] = useState('');
   const [sceneTags, setSceneTags] = useState<SceneTags>({});
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string>('');
 
-  // Free text + selected helper chips → the prompt actually sent.
-  const composedPrompt = useMemo(() => composePrompt(prompt, sceneTags), [prompt, sceneTags]);
+  // Free text + helper chips + active material names → the prompt actually sent.
+  const composedPrompt = useMemo(
+    () => [composePrompt(prompt, sceneTags), materialsClause(materials)].filter(Boolean).join(' '),
+    [prompt, sceneTags, materials],
+  );
 
   const [runs, setRuns] = useState<RenderRun[]>([]);
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -142,6 +172,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     form.set('numImages', String(numImages));
     form.set('width', String(width));
     form.set('height', String(height));
+    appendMaterials(form, materials);
 
     try {
       const response = await fetch('/api/generate', { method: 'POST', body: form });
@@ -191,6 +222,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     file,
     inputType,
     isGenerating,
+    materials,
     numImages,
     providerName,
     style,
@@ -336,6 +368,10 @@ export default function Studio({ providerName }: { providerName: ProviderName })
           'image',
           typeof image === 'string' ? image : new File([image], 'render.png', { type: 'image/png' }),
         );
+        // Palette swatches ride along so Gemini applies the real materials.
+        appendMaterials(form, materials);
+        const mats = activeMaterials(materials);
+        if (mats.length) form.set('prompt', materialsClause(materials));
 
         const response = await fetch('/api/finalize', { method: 'POST', body: form });
         const payload: unknown = await response.json().catch(() => null);
@@ -369,7 +405,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
         setFinalizing(null);
       }
     },
-    [finalizing, runs],
+    [finalizing, materials, runs],
   );
 
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
@@ -422,6 +458,12 @@ export default function Studio({ providerName }: { providerName: ProviderName })
             onStyleChange={setStyle}
             onAspectChange={setAspect}
             onNumImagesChange={setNumImages}
+          />
+          <MaterialPalette
+            materials={materials}
+            disabled={isGenerating}
+            onChange={setMaterials}
+            onError={setError}
           />
         </aside>
 

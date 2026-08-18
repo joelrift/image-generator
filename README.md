@@ -96,11 +96,13 @@ components/
   StyleControls.tsx         style preset, structure method, strength slider, format
   ResultsGrid.tsx           session gallery, variation selection, edit entry point
   MaskEditor.tsx            brush → mask PNG, change/add modes
+  MaterialPalette.tsx       named material swatches used as render references
   PromptBar.tsx             prompt + Generate (⌘/Ctrl+Enter)
 lib/
   providers/{types,index,mock,fal,replicate,comfyui}.ts
   preprocess.ts             input type → controlType, default strengths
   mask.ts                   stroke geometry, mask export, image field encoding
+  materials.ts              material palette clause + active-swatch filtering
   studio.ts                 aspect ratios and run types shared by the panels
   validate.ts               upload limits and field validation
   api.ts                    one error funnel for all routes
@@ -184,6 +186,27 @@ the app's Style control) and **Camera angle** (the camera is fixed by the source
 and held by "Follow the source", so offering a reframe would promise what the tool
 won't do). The taxonomy and `composePrompt` live in `lib/prompt-tags.ts`, kept
 pure so composition is unit-testable.
+
+### Material palette
+
+The left rail carries a **Material palette** (the GoBANANAS "Materialpalett"
+pattern): add swatch images, name each, and toggle which are active. Active
+swatches steer the render two ways, because the providers differ in what they
+accept:
+
+- **Names** are always appended to the prompt (`materialsClause` in
+  `lib/materials.ts`), so *every* provider — BFL Kontext included, which takes a
+  single image — acts on "reclad in charred timber and Corten steel".
+- **Images** ride along as extra reference parts to providers that accept
+  multiple images (**Gemini**, on both generate and Finalize), so the model can
+  sample the actual material, not just read its name.
+
+Only active swatches with a non-empty label and image are sent
+(`activeMaterials`). The palette is client-side state; swatches are read as data
+URIs and posted as `material` files plus a parallel `materialLabels` JSON array,
+validated by `readMaterials` (`lib/validate.ts`, max 12, same upload allowlist).
+Mock mode echoes the count on the placeholder so the wiring is visible without a
+key.
 
 ### Upscale
 

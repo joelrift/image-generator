@@ -3,7 +3,7 @@ import { errorResponse } from '@/lib/api';
 import { CONTROL_TYPES } from '@/lib/preprocess';
 import { getProvider } from '@/lib/providers';
 import type { StylePreset } from '@/lib/providers/types';
-import { readEnum, readImageField, readNumber, readString } from '@/lib/validate';
+import { readEnum, readImageField, readMaterials, readNumber, readString } from '@/lib/validate';
 
 const STYLES: readonly StylePreset[] = ['realistic', 'watercolor', 'vector'];
 
@@ -26,6 +26,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const image = await readImageField(form, 'image', { required: true });
     const styleRefImage = await readImageField(form, 'styleRefImage');
+    const materials = await readMaterials(form);
 
     const result = await getProvider('generate').generate({
       image: image!,
@@ -34,6 +35,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       controlStrength: readNumber(form, 'controlStrength', { min: 0, max: 1, fallback: 0.8 }),
       style: readEnum(form, 'style', STYLES, 'realistic'),
       styleRefImage,
+      materials,
       numImages: readNumber(form, 'numImages', { min: 1, max: 8, fallback: 4, integer: true }),
       width: readNumber(form, 'width', { min: 256, max: 2048, fallback: 1024, integer: true }),
       height: readNumber(form, 'height', { min: 256, max: 2048, fallback: 576, integer: true }),

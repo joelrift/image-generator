@@ -83,6 +83,48 @@ export async function readImageField(
   return Buffer.from(await file.arrayBuffer());
 }
 
+/**
+ * Read the material palette from the form: files under `material`, plus a
+ * parallel JSON array of labels under `materialLabels`. Each file is validated
+ * like any image upload. Returns [] when none were sent.
+ */
+export async function readMaterials(
+  form: FormData,
+): Promise<{ label: string; image: Buffer }[]> {
+  const files = form.getAll('material').filter((v): v is File => v instanceof File);
+  if (files.length === 0) return [];
+
+  let labels: string[] = [];
+  const rawLabels = form.get('materialLabels');
+  if (typeof rawLabels === 'string' && rawLabels) {
+    try {
+      const parsed: unknown = JSON.parse(rawLabels);
+      if (Array.isArray(parsed)) labels = parsed.map((x) => String(x));
+    } catch {
+      throw badRequest('"materialLabels" must be a JSON array.');
+    }
+  }
+
+  if (files.length > 12) throw badRequest('Too many materials (max 12).');
+
+  const materials: { label: string; image: Buffer }[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.size === 0) continue;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw badRequest(`A material image is ${formatBytes(file.size)}; the limit is ${formatBytes(MAX_UPLOAD_BYTES)}.`);
+    }
+    if (file.type && !ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
+      throw badRequest(`A material image is ${file.type}; allowed: ${ALLOWED_IMAGE_TYPES.join(', ')}.`);
+    }
+    materials.push({
+      label: (labels[i] ?? `Material ${i + 1}`).slice(0, 120),
+      image: Buffer.from(await file.arrayBuffer()),
+    });
+  }
+  return materials;
+}
+
 export function readString(
   form: FormData,
   field: string,
