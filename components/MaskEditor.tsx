@@ -26,6 +26,7 @@ import {
   EDIT_OP_HINTS,
   EDIT_OP_LABELS,
   EDIT_OP_PLACEHOLDERS,
+  LOCK_GEOMETRY_CLAUSE,
   type EditOp,
 } from '@/lib/studio';
 
@@ -76,6 +77,11 @@ export default function MaskEditor({
   const [prompt, setPrompt] = useState('');
   const [brush, setBrush] = useState(BRUSH_DEFAULT);
   const [erasing, setErasing] = useState(false);
+  // Preserve structure by default — geometry fidelity is the tool's whole point.
+  const [lockGeometry, setLockGeometry] = useState(true);
+  // Soften the mask boundary by default — a hard edge is what produced the
+  // "white box" leak; crisp is one click away for a window or sign.
+  const [softenEdges, setSoftenEdges] = useState(true);
 
   const [regions, setRegions] = useState<Region[]>([]);
   const [draft, setDraft] = useState<Point[] | null>(null);
@@ -304,13 +310,22 @@ export default function MaskEditor({
 
     setPreparing(true);
     try {
+      // Feather scales with the image so the soft band is a consistent visual
+      // width regardless of export resolution; only applied to a bounded edit.
+      const featherPx =
+        softenEdges && selected
+          ? Math.round(Math.min(natural.width, natural.height) * 0.012)
+          : 0;
       const [image, mask] = await Promise.all([
         imageFieldValue(src),
         selected
-          ? regionsToMaskBlob(regions, natural.width, natural.height)
+          ? regionsToMaskBlob(regions, natural.width, natural.height, { featherPx })
           : Promise.resolve(null),
       ]);
-      onApply({ op, prompt: prompt.trim(), image, mask });
+      const instruction = lockGeometry
+        ? `${prompt.trim()} ${LOCK_GEOMETRY_CLAUSE}`
+        : prompt.trim();
+      onApply({ op, prompt: instruction, image, mask });
     } catch (cause) {
       onError(cause instanceof Error ? cause.message : 'Could not prepare the mask for sending.');
     } finally {
@@ -465,7 +480,7 @@ export default function MaskEditor({
                   disabled={working}
                   onClick={() => setErasing(false)}
                 >
-                  Add
+                  Paint
                 </button>
                 <button
                   type="button"
@@ -475,7 +490,7 @@ export default function MaskEditor({
                   disabled={working}
                   onClick={() => setErasing(true)}
                 >
-                  Subtract
+                  Erase
                 </button>
                 <button
                   type="button"
@@ -495,8 +510,44 @@ export default function MaskEditor({
                 </button>
               </div>
               <p className="text-[12px] text-muted">
-                Subtract cuts a shape back out — a window out of a facade selection, say.
+                Erase cuts a shape back out — a window out of a facade selection, say.
               </p>
+            </section>
+
+            <section className="flex flex-col gap-2">
+              <h3 className="label">Fidelity</h3>
+              <label className="flex items-start gap-2 text-[13px] text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={lockGeometry}
+                  disabled={working}
+                  onChange={(event) => setLockGeometry(event.target.checked)}
+                />
+                <span>
+                  Lock geometry
+                  <span className="block text-[12px] text-muted">
+                    Holds structure, proportions and camera fixed — change surface and
+                    material only.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-[13px] text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={softenEdges}
+                  disabled={working}
+                  onChange={(event) => setSoftenEdges(event.target.checked)}
+                />
+                <span>
+                  Soften mask edges
+                  <span className="block text-[12px] text-muted">
+                    Feathers the selection so the edit blends in. Turn off for a crisp
+                    cut (a window, a sign).
+                  </span>
+                </span>
+              </label>
             </section>
 
             <section className="flex flex-col gap-2">

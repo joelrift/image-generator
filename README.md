@@ -243,10 +243,25 @@ pitch:
 - **Rectangle** — drag a box. Windows, doors, signs, a parked car.
 - **Brush** — freehand, for organic edges: planting, sky, water.
 
-Each shape is **Add** or **Subtract**, so you can select a whole facade and then
+Each shape is **Paint** or **Erase**, so you can select a whole facade and then
 cut the windows back out of it. Undo steps back one corner while drafting, one
 shape otherwise. Escape cancels an in-progress shape first and only then closes
 the dialog.
+
+Two fidelity controls sit under the tools, both **on by default**:
+
+- **Lock geometry** appends a clause to the instruction telling the provider to
+  hold structure, proportions and camera fixed and change only surface and
+  material (or, for *Add something*, to place the new element without reshaping
+  what is there). The wording lives in one place — `LOCK_GEOMETRY_CLAUSE` in
+  `lib/studio.ts`.
+- **Soften mask edges** feathers the exported mask so the edit blends into its
+  surroundings. A hard mask edge reads to a Fill model as a real edge in the
+  image — which is what produced the "white box" artefact on a plain rectangular
+  selection. Turn it off for a crisp cut where the boundary is a genuine edge (a
+  window reveal, a sign). The feather scales with the image (`regionsToMaskBlob`
+  in `lib/mask.ts`), so the soft band is a consistent visual width at any export
+  resolution.
 
 Three details that are load-bearing:
 
@@ -256,8 +271,8 @@ Three details that are load-bearing:
 - **The image is never drawn into the overlay canvas.** It carries selection
   graphics only, and the export mask renders separately at natural resolution — so
   the canvas can't be tainted no matter where the render came from, the exported
-  PNG stays strictly two-tone (white = edit, black = keep), and handles and
-  dashed guides never leak into the mask.
+  PNG is two-tone (white = edit, black = keep) plus an optional feathered edge,
+  and handles and dashed guides never leak into the mask.
 - **Results are appended, never substituted.** An edit becomes a new run in the
   gallery, so it can itself be edited and nothing the user liked is lost.
 

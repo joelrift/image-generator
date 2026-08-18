@@ -323,11 +323,20 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-/** Export the regions as a PNG mask at the given natural dimensions. */
+/**
+ * Export the regions as a PNG mask at the given natural dimensions.
+ *
+ * With `featherPx > 0` the white/black boundary is softened into a short
+ * gradient instead of a hard edge. A hard mask edge reads to a Fill model as a
+ * real edge in the image, which is what produced the "white box" artefact on a
+ * plain rectangular selection; a feathered edge lets the edit blend into its
+ * surroundings. Leave it at 0 for a crisp cut (a window reveal, a sign).
+ */
 export async function regionsToMaskBlob(
   regions: Region[],
   width: number,
   height: number,
+  opts: { featherPx?: number } = {},
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -336,7 +345,26 @@ export async function regionsToMaskBlob(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable.');
 
-  renderMask(ctx, regions, width, height);
+  const feather = Math.max(0, Math.round(opts.featherPx ?? 0));
+  if (feather === 0) {
+    renderMask(ctx, regions, width, height);
+    return canvasToPngBlob(canvas);
+  }
+
+  // Render the crisp two-tone mask to a source canvas, then blit it through a
+  // blur onto a black ground so the edges fade white→black over `feather` px.
+  const source = document.createElement('canvas');
+  source.width = width;
+  source.height = height;
+  const sourceCtx = source.getContext('2d');
+  if (!sourceCtx) throw new Error('Canvas 2D context unavailable.');
+  renderMask(sourceCtx, regions, width, height);
+
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, width, height);
+  ctx.filter = `blur(${feather}px)`;
+  ctx.drawImage(source, 0, 0);
+  ctx.filter = 'none';
   return canvasToPngBlob(canvas);
 }
 

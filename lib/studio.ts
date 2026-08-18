@@ -45,6 +45,16 @@ export const EDIT_OP_PLACEHOLDERS: Record<EditOp, string> = {
   'add-element': 'What should be added? e.g. “a timber pergola over the terrace”',
 };
 
+/**
+ * Appended to an edit instruction when "Lock geometry" is on. Written to hold
+ * for both branches: a change stays a surface/material change, and an addition
+ * is placed without reshaping what is already there. Kept here so the wording
+ * lives in one place.
+ */
+export const LOCK_GEOMETRY_CLAUSE =
+  'Preserve the existing geometry, structure, proportions and camera exactly — ' +
+  'do not move, distort or reshape anything that is already in the image.';
+
 /** One generation or edit, kept for the session gallery (brief §2 item 6). */
 export interface RenderRun {
   id: string;
