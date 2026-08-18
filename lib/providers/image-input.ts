@@ -5,23 +5,29 @@ import { ProviderRequestError, type ImageInput } from './types';
  * Used by providers that talk raw HTTP (bfl, gemini).
  */
 
-/** Strip a data: URI prefix, fetch a URL, or encode raw bytes — always base64. */
-export async function toBase64(input: ImageInput, timeoutMs = 30_000): Promise<string> {
+/**
+ * Encode an ImageInput as base64: raw bytes directly, or a base64 data: URI's
+ * payload.
+ *
+ * A bare http(s) URL is deliberately NOT fetched here. Input images are
+ * validated by `readImageField`, which only ever yields a Buffer or a data:
+ * URI, so a URL should never reach this point — and fetching a caller-supplied
+ * URL server-side would be a server-side request forgery sink. It is refused
+ * rather than fetched. (A provider fetching its *own* result URL — e.g. BFL's
+ * signed download link — does so directly, not through this helper.)
+ */
+export async function toBase64(input: ImageInput): Promise<string> {
   if (Buffer.isBuffer(input)) return input.toString('base64');
 
   const dataUri = /^data:[^;,]+;base64,(.*)$/s.exec(input);
   if (dataUri) return dataUri[1];
 
   if (/^https?:\/\//.test(input)) {
-    const response = await fetch(input, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!response.ok) {
-      throw new ProviderRequestError(
-        502,
-        'Could not fetch the source image to send to the provider.',
-        `GET ${input} → ${response.status}`,
-      );
-    }
-    return Buffer.from(await response.arrayBuffer()).toString('base64');
+    throw new ProviderRequestError(
+      400,
+      'Remote image URLs are not accepted. Upload the image or send it as a data: URI.',
+      `refused to fetch caller-supplied URL: ${input.slice(0, 120)}`,
+    );
   }
 
   // A non-base64 data URI should never reach here: uploads are validated and the

@@ -3,7 +3,14 @@ import { errorResponse } from '@/lib/api';
 import { CONTROL_TYPES } from '@/lib/preprocess';
 import { getProvider } from '@/lib/providers';
 import type { StylePreset } from '@/lib/providers/types';
-import { readEnum, readImageField, readMaterials, readNumber, readString } from '@/lib/validate';
+import {
+  readEnum,
+  readImageField,
+  readLimitedFormData,
+  readMaterials,
+  readNumber,
+  readString,
+} from '@/lib/validate';
 
 const STYLES: readonly StylePreset[] = ['realistic', 'watercolor', 'vector'];
 
@@ -22,7 +29,7 @@ const STYLES: readonly StylePreset[] = ['realistic', 'watercolor', 'vector'];
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const form = await request.formData();
+    const form = await readLimitedFormData(request);
 
     const image = await readImageField(form, 'image', { required: true });
     const styleRefImage = await readImageField(form, 'styleRefImage');

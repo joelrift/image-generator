@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { errorResponse } from '@/lib/api';
 import { getProvider } from '@/lib/providers';
-import { readImageField, readMaterials, readString } from '@/lib/validate';
+import { readImageField, readLimitedFormData, readMaterials, readString } from '@/lib/validate';
 
 /**
  * POST /api/finalize — the last pipeline stage: a whole-image photoreal
@@ -19,7 +19,7 @@ const FINALIZE_INSTRUCTION =
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const form = await request.formData();
+    const form = await readLimitedFormData(request);
 
     const image = await readImageField(form, 'image', { required: true });
     const extra = readString(form, 'prompt', { maxLength: 2000 });

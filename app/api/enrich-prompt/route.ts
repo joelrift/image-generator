@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { errorResponse } from '@/lib/api';
 import { CONTROL_TYPES } from '@/lib/preprocess';
 import type { ControlType, StylePreset } from '@/lib/providers/types';
-import { readEnum, readString } from '@/lib/validate';
+import { readEnum, readLimitedFormData, readString } from '@/lib/validate';
 
 const STYLES: readonly StylePreset[] = ['realistic', 'watercolor', 'vector'];
 
@@ -17,7 +17,7 @@ const STYLES: readonly StylePreset[] = ['realistic', 'watercolor', 'vector'];
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const form = await request.formData();
+    const form = await readLimitedFormData(request);
 
     const prompt = readString(form, 'prompt', { required: true, maxLength: 2000 });
     const style = readEnum(form, 'style', STYLES, 'realistic');

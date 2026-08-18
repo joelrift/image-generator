@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { errorResponse } from '@/lib/api';
 import { getProvider } from '@/lib/providers';
-import { readImageField, readString } from '@/lib/validate';
+import { readImageField, readLimitedFormData, readString } from '@/lib/validate';
 
 /**
  * POST /api/inpaint — the "change this" branch of the region editor (Phase 3).
@@ -15,7 +15,7 @@ import { readImageField, readString } from '@/lib/validate';
  */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const form = await request.formData();
+    const form = await readLimitedFormData(request);
 
     const image = await readImageField(form, 'image', { required: true });
     const mask = await readImageField(form, 'mask');

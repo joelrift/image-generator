@@ -105,7 +105,13 @@ const CHECK_HINT =
 
 /* ============================================================= helpers */
 
-/** Strip a data: URI prefix, fetch a URL, or encode raw bytes — always base64. */
+/**
+ * Encode an ImageInput as base64: raw bytes, or a base64 data: URI's payload.
+ *
+ * A caller-supplied http(s) URL is refused, not fetched — fetching one
+ * server-side would be an SSRF sink, and validated input never produces one.
+ * BFL's own signed result URL is downloaded by `download()`, not here.
+ */
 async function toBase64(input: ImageInput): Promise<string> {
   if (Buffer.isBuffer(input)) return input.toString('base64');
 
@@ -113,15 +119,11 @@ async function toBase64(input: ImageInput): Promise<string> {
   if (dataUri) return dataUri[1];
 
   if (/^https?:\/\//.test(input)) {
-    const response = await fetch(input, { signal: AbortSignal.timeout(CONFIG.requestTimeoutMs) });
-    if (!response.ok) {
-      throw new ProviderRequestError(
-        502,
-        'Could not fetch the source image to send to the provider.',
-        `GET ${input} → ${response.status}`,
-      );
-    }
-    return Buffer.from(await response.arrayBuffer()).toString('base64');
+    throw new ProviderRequestError(
+      400,
+      'Remote image URLs are not accepted. Upload the image or send it as a data: URI.',
+      `refused to fetch caller-supplied URL: ${input.slice(0, 120)}`,
+    );
   }
 
   // A non-base64 data URI (percent-encoded SVG, say) should never reach here:

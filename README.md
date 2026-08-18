@@ -276,9 +276,11 @@ Three details that are load-bearing:
 - **Results are appended, never substituted.** An edit becomes a new run in the
   gallery, so it can itself be edited and nothing the user liked is lost.
 
-Provider images are forwarded as URLs when they are remote (no re-upload, no CORS
-problem) and rasterised to PNG when they are data URIs — which is also how mock's
-SVG placeholders round-trip without punching a hole in the SVG rejection.
+Data-URI images are rasterised to PNG before sending — which is also how mock's
+SVG placeholders round-trip without punching a hole in the SVG rejection. Every
+provider inlines its results as data URIs (BFL's signed links expire, so they are
+downloaded and inlined at the source), so the gallery holds data URIs and the
+server never needs to fetch a client-supplied URL (see **Security** below).
 
 ### Mock mode
 
@@ -289,10 +291,29 @@ grey boxes.
 
 ### Uploads
 
-12 MB cap, PNG/JPEG/WebP only, enforced in `lib/validate.ts` and mirrored
-client-side so bad files fail instantly. SVG is rejected deliberately: it is an
-active document that can carry script, and nothing downstream needs it. Real
-content sniffing belongs wherever bytes get persisted (Phase 5).
+12 MB per-file cap, PNG/JPEG/WebP only, enforced in `lib/validate.ts` and
+mirrored client-side so bad files fail instantly. SVG is rejected deliberately:
+it is an active document that can carry script, and nothing downstream needs it.
+Real content sniffing belongs wherever bytes get persisted (Phase 5).
+
+### Security
+
+Two guards close the gaps an internal tool should not ship with:
+
+- **No server-side fetch of caller-supplied URLs (SSRF).** `readImageField`
+  accepts an uploaded file or a `data:` image URI only — never an `http(s)` URL.
+  The providers encode their input images server-side (`toBase64`), so honouring
+  an arbitrary URL would let a caller aim the server at internal addresses (cloud
+  metadata, localhost services). `toBase64` refuses URLs too, as a second layer.
+  A provider fetching its *own* result URL (BFL's signed download) is unaffected
+  — that is a server-generated URL, not caller input. If remote references are
+  ever wanted, add them back behind an explicit host allowlist.
+- **Request-body ceiling, enforced before buffering.** `serverActions.bodySizeLimit`
+  does not apply to route handlers, so `readLimitedFormData` caps the body itself
+  — checking `Content-Length` and streaming with a running byte counter that
+  aborts a lying or chunked oversized body before it is held in memory. The
+  default ceiling is sized to the most files any route accepts at the per-file
+  limit; override with `RENDER_MAX_BODY_BYTES`.
 
 Keys are read server-side only. Nothing is exposed as `NEXT_PUBLIC_*`, and no
 provider call is ever made from the browser.
