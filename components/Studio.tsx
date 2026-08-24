@@ -524,7 +524,8 @@ export default function Studio({ providerName }: { providerName: ProviderName })
             )}
           </div>
           <p className="text-[12px] text-muted">
-            One choice per group composes onto your prompt. Click a selected chip to clear it.
+            Chips compose onto your prompt — one per group, several for Materials.
+            Click a selected chip to clear it.
           </p>
           <PromptHelper tags={sceneTags} disabled={isGenerating} onChange={setSceneTags} />
         </aside>

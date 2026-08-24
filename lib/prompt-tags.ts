@@ -28,13 +28,36 @@ export interface TagOption {
 export interface TagCategory {
   key: string;
   label: string;
+  /** When true, several chips can be picked at once (e.g. materials). */
+  multi?: boolean;
   options: TagOption[];
 }
 
-/** One selected option key per category (or absent). */
-export type SceneTags = Record<string, string | undefined>;
+/**
+ * The selection per category: a single option key for single-select groups, or
+ * an array of keys for multi-select ones (materials). Absent when nothing is
+ * chosen in that group.
+ */
+export type SceneTags = Record<string, string | string[] | undefined>;
 
 export const TAG_CATEGORIES: readonly TagCategory[] = [
+  {
+    key: 'materials',
+    label: 'Materials',
+    multi: true,
+    options: [
+      { key: 'timber', label: 'Timber', phrase: 'vertical timber cladding' },
+      { key: 'charred', label: 'Charred timber', phrase: 'charred shou-sugi-ban timber cladding' },
+      { key: 'brick', label: 'Brick', phrase: 'brick masonry facade' },
+      { key: 'stone', label: 'Natural stone', phrase: 'natural stone cladding' },
+      { key: 'concrete', label: 'Concrete', phrase: 'board-formed concrete' },
+      { key: 'render', label: 'White render', phrase: 'smooth white rendered walls' },
+      { key: 'zinc', label: 'Standing-seam zinc', phrase: 'standing-seam zinc' },
+      { key: 'corten', label: 'Corten steel', phrase: 'weathered Corten steel' },
+      { key: 'aluminium', label: 'Dark aluminium', phrase: 'dark aluminium panels' },
+      { key: 'glazing', label: 'Large glazing', phrase: 'large glazed openings with slim frames' },
+    ],
+  },
   {
     key: 'lighting',
     label: 'Lighting',
@@ -87,21 +110,29 @@ export const TAG_CATEGORIES: readonly TagCategory[] = [
   },
 ];
 
-/** The phrases for the currently selected options, in category order. */
+/** The phrases for the currently selected options, in category then option order. */
 export function selectedPhrases(tags: SceneTags): string[] {
   const phrases: string[] = [];
   for (const category of TAG_CATEGORIES) {
     const chosen = tags[category.key];
     if (!chosen) continue;
-    const option = category.options.find((o) => o.key === chosen);
-    if (option) phrases.push(option.phrase);
+    const chosenKeys = Array.isArray(chosen) ? chosen : [chosen];
+    // Iterate options (not chosenKeys) so the order is stable regardless of
+    // click order.
+    for (const option of category.options) {
+      if (chosenKeys.includes(option.key)) phrases.push(option.phrase);
+    }
   }
   return phrases;
 }
 
-/** How many chips are selected — for the "N added" hint and the toggle badge. */
+/** How many chips are selected — for the "N selected" hint. Counts each chip. */
 export function selectedCount(tags: SceneTags): number {
-  return TAG_CATEGORIES.reduce((n, c) => (tags[c.key] ? n + 1 : n), 0);
+  return TAG_CATEGORIES.reduce((n, c) => {
+    const chosen = tags[c.key];
+    if (!chosen) return n;
+    return n + (Array.isArray(chosen) ? chosen.length : 1);
+  }, 0);
 }
 
 /**

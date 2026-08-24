@@ -1,6 +1,6 @@
 'use client';
 
-import { TAG_CATEGORIES, type SceneTags } from '@/lib/prompt-tags';
+import { TAG_CATEGORIES, type SceneTags, type TagCategory } from '@/lib/prompt-tags';
 
 interface PromptHelperProps {
   tags: SceneTags;
@@ -9,15 +9,27 @@ interface PromptHelperProps {
 }
 
 /**
- * Chip grid for building a prompt by category (lighting, season, weather,
- * setting, people). One choice per category; clicking the selected chip clears
- * it. Selections compose onto the free-text prompt — see composePrompt.
+ * Chip grid for building a prompt by category (materials, lighting, season,
+ * weather, setting, people). Most groups are single-choice; the multi groups
+ * (materials) allow several. Clicking a selected chip clears it. Selections
+ * compose onto the free-text prompt — see composePrompt.
  */
 export default function PromptHelper({ tags, disabled, onChange }: PromptHelperProps) {
-  const toggle = (categoryKey: string, optionKey: string) => {
+  const toggle = (category: TagCategory, optionKey: string) => {
     const next = { ...tags };
-    if (next[categoryKey] === optionKey) delete next[categoryKey];
-    else next[categoryKey] = optionKey;
+    if (category.multi) {
+      const current = next[category.key];
+      const chosen = Array.isArray(current) ? [...current] : [];
+      const at = chosen.indexOf(optionKey);
+      if (at >= 0) chosen.splice(at, 1);
+      else chosen.push(optionKey);
+      if (chosen.length) next[category.key] = chosen;
+      else delete next[category.key];
+    } else if (next[category.key] === optionKey) {
+      delete next[category.key];
+    } else {
+      next[category.key] = optionKey;
+    }
     onChange(next);
   };
 
@@ -28,7 +40,10 @@ export default function PromptHelper({ tags, disabled, onChange }: PromptHelperP
           <h3 className="label">{category.label}</h3>
           <div className="flex flex-wrap gap-2">
             {category.options.map((option) => {
-              const active = tags[category.key] === option.key;
+              const selected = tags[category.key];
+              const active = Array.isArray(selected)
+                ? selected.includes(option.key)
+                : selected === option.key;
               return (
                 <button
                   key={option.key}
@@ -38,7 +53,7 @@ export default function PromptHelper({ tags, disabled, onChange }: PromptHelperP
                   aria-pressed={active}
                   disabled={disabled}
                   title={option.phrase}
-                  onClick={() => toggle(category.key, option.key)}
+                  onClick={() => toggle(category, option.key)}
                 >
                   {option.label}
                 </button>
