@@ -195,7 +195,9 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       const run: RenderRun = {
         id: runId(),
         op: 'generate',
-        provider: providerName,
+        // The server may route generate to Gemini when swatch images are sent,
+        // so trust the provider the result reports over the header default.
+        provider: (result.meta?.provider as ProviderName) ?? providerName,
         prompt: composedPrompt,
         images: result.images,
         inputType,

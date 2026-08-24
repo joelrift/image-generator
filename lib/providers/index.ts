@@ -47,6 +47,21 @@ export function getProvider(op: ProviderOp = 'generate'): RenderProvider {
   return construct(resolveProviderName(op));
 }
 
+/**
+ * Provider for the generate step, with one dynamic override: when the request
+ * carries material-swatch *images*, prefer Gemini if a key is present. Gemini is
+ * the only generate backend that accepts multiple images, so the swatches can
+ * condition the base render directly rather than only their names reaching the
+ * prompt (BFL Kontext takes a single image). Without swatch images — or without
+ * a Gemini key — the normal per-op routing applies.
+ */
+export function getGenerateProvider(hasMaterialImages = false): RenderProvider {
+  if (hasMaterialImages && process.env.GEMINI_API_KEY && resolveProviderName('generate') !== 'gemini') {
+    return construct('gemini');
+  }
+  return getProvider('generate');
+}
+
 const KNOWN: readonly ProviderName[] = ['fal', 'bfl', 'gemini', 'replicate', 'comfyui', 'mock'];
 
 function parseName(value: string | undefined): ProviderName | null {

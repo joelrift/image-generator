@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { errorResponse } from '@/lib/api';
 import { CONTROL_TYPES } from '@/lib/preprocess';
-import { getProvider } from '@/lib/providers';
+import { getGenerateProvider } from '@/lib/providers';
 import type { StylePreset } from '@/lib/providers/types';
 import {
   readEnum,
@@ -35,7 +35,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const styleRefImage = await readImageField(form, 'styleRefImage');
     const materials = await readMaterials(form);
 
-    const result = await getProvider('generate').generate({
+    // Swatch images can only condition the base render on a multi-image provider
+    // (Gemini); with images present and a Gemini key, generate routes there.
+    const result = await getGenerateProvider(materials.length > 0).generate({
       image: image!,
       prompt: readString(form, 'prompt', { required: true, maxLength: 2000 }),
       controlType: readEnum(form, 'controlType', CONTROL_TYPES, 'depth'),

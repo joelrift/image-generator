@@ -201,6 +201,17 @@ accept:
   multiple images (**Gemini**, on both generate and Finalize), so the model can
   sample the actual material, not just read its name.
 
+**Routing when swatch images are present.** BFL Kontext accepts a single image
+(the source), so it can only act on the material *names*. To let the swatch
+*photos* condition the base render, `getGenerateProvider` (`lib/providers/index.ts`)
+routes the generate step to **Gemini** whenever active swatch images are sent
+*and* a `GEMINI_API_KEY` is configured — Gemini being the only generate backend
+that takes multiple images. Without swatches, or without a Gemini key, generate
+uses the normal per-op routing (BFL). Either way the photos are also applied at
+the Finalize pass. The gallery badges each run with the provider that actually
+ran, so a swatch-driven generate reads `gemini` even when the header default is
+`bfl`.
+
 Only active swatches with a non-empty label and image are sent
 (`activeMaterials`). The palette is client-side state; swatches are read as data
 URIs and posted as `material` files plus a parallel `materialLabels` JSON array,
