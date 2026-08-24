@@ -23,6 +23,7 @@ interface ResultsGridProps {
   onEditRegion: (selection: Selection) => void;
   onUpscale: (selection: Selection, scale: UpscaleFactor) => void;
   onFinalize: (selection: Selection) => void;
+  onDelete: (selection: Selection) => void;
 }
 
 /**
@@ -44,6 +45,7 @@ export default function ResultsGrid({
   onEditRegion,
   onUpscale,
   onFinalize,
+  onDelete,
 }: ResultsGridProps) {
   const pendingRatio = `${ASPECTS[aspect].width} / ${ASPECTS[aspect].height}`;
 
@@ -232,6 +234,16 @@ export default function ResultsGrid({
                                   : `${factor}×`}
                               </button>
                             ))}
+                            <span aria-hidden="true" className="text-line">
+                              |
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onDelete({ runId: run.id, index })}
+                              className="text-muted underline hover:text-red-700 hover:no-underline"
+                            >
+                              Remove
+                            </button>
                             <span aria-hidden="true" className="text-line">
                               |
                             </span>

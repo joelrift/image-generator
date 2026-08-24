@@ -414,6 +414,30 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     [finalizing, materials, runs],
   );
 
+  /**
+   * Remove one image from the gallery. A run holds several variations, so this
+   * drops just the chosen image; when it was the run's last one the whole run
+   * goes. Selection follows: cleared if it was the deleted image, shifted down
+   * if an earlier sibling in the same run was removed.
+   */
+  const handleDelete = useCallback((selection: Selection) => {
+    setRuns((previous) =>
+      previous
+        .map((run) =>
+          run.id === selection.runId
+            ? { ...run, images: run.images.filter((_, i) => i !== selection.index) }
+            : run,
+        )
+        .filter((run) => run.images.length > 0),
+    );
+    setSelected((current) => {
+      if (!current || current.runId !== selection.runId) return current;
+      if (current.index === selection.index) return null;
+      if (current.index > selection.index) return { ...current, index: current.index - 1 };
+      return current;
+    });
+  }, []);
+
   const totalImages = useMemo(() => runs.reduce((sum, run) => sum + run.images.length, 0), [runs]);
 
   return (
@@ -490,6 +514,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
               onEditRegion={handleOpenEditor}
               onUpscale={handleUpscale}
               onFinalize={handleFinalize}
+              onDelete={handleDelete}
             />
           </div>
 
