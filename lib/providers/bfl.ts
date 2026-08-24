@@ -616,11 +616,16 @@ function buildKontextInstruction(input: GenerateInput): string {
   };
 
   const strength = Math.min(Math.max(input.controlStrength, 0), 1);
+  const lockMaterials = input.lockMaterials !== false;
   const geometryClause =
     strength >= 0.85
-      ? 'Preserve the exact geometry, proportions, camera angle, and the building’s existing materials, cladding and colours of the original; improve only lighting, shadows, realism and atmosphere. Keep each surface’s material exactly as in the original unless the description explicitly names a different material for it.'
+      ? lockMaterials
+        ? 'Preserve the exact geometry, proportions, camera angle, and the building’s existing materials, cladding and colours of the original; improve only lighting, shadows, realism and atmosphere. Keep each surface’s material exactly as in the original unless the description explicitly names a different material for it.'
+        : 'Preserve the exact geometry, proportions, and camera angle of the original; you may reinterpret materials and finishes to achieve a convincing photorealistic result, guided by the description.'
       : strength >= 0.6
-        ? 'Keep the overall geometry, massing, composition, and the existing materials and colours; refine only lighting and realism. Change a material only where the description names a new one.'
+        ? lockMaterials
+          ? 'Keep the overall geometry, massing, composition, and the existing materials and colours; refine only lighting and realism. Change a material only where the description names a new one.'
+          : 'Keep the overall geometry, massing, and composition; you may refine materials, lighting and realism to suit the description.'
         : strength >= 0.35
           ? 'Use the original as strong guidance for the composition, but you may adjust details.'
           : 'Loosely reinterpret the original; prioritise the description over exact structure.';

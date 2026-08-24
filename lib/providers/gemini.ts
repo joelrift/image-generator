@@ -255,9 +255,12 @@ function buildGenerateInstruction(input: GenerateInput): string {
         ? 'a clean flat vector diagram'
         : 'a photorealistic architectural visualisation';
   const strength = Math.min(Math.max(input.controlStrength, 0), 1);
+  const lockMaterials = input.lockMaterials !== false;
   const geometry =
     strength >= 0.6
-      ? 'Preserve the exact geometry, proportions, camera angle, and the existing materials, cladding and colours; improve only lighting, shadows, realism and atmosphere. Keep each surface’s material as in the original unless the description explicitly names a different one.'
+      ? lockMaterials
+        ? 'Preserve the exact geometry, proportions, camera angle, and the existing materials, cladding and colours; improve only lighting, shadows, realism and atmosphere. Keep each surface’s material as in the original unless the description explicitly names a different one.'
+        : 'Preserve the exact geometry, proportions and camera angle; you may reinterpret materials, lighting and atmosphere for a photorealistic result.'
       : 'Use the image as guidance for composition, but you may reinterpret details.';
   return `Turn this into ${styleClause}: ${input.prompt.replace(/[.\s]+$/, '')}. ${geometry}`;
 }

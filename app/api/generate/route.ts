@@ -43,6 +43,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       style: readEnum(form, 'style', STYLES, 'realistic'),
       styleRefImage,
       materials,
+      lockMaterials: readString(form, 'lockMaterials') !== 'false',
       numImages: readNumber(form, 'numImages', { min: 1, max: 8, fallback: 4, integer: true }),
       width: readNumber(form, 'width', { min: 256, max: 2048, fallback: 1024, integer: true }),
       height: readNumber(form, 'height', { min: 256, max: 2048, fallback: 576, integer: true }),

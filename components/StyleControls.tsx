@@ -25,12 +25,14 @@ interface StyleControlsProps {
   style: StylePreset;
   aspect: AspectKey;
   numImages: number;
+  lockMaterials: boolean;
   disabled: boolean;
   onControlTypeChange: (controlType: ControlType) => void;
   onControlStrengthChange: (strength: number) => void;
   onStyleChange: (style: StylePreset) => void;
   onAspectChange: (aspect: AspectKey) => void;
   onNumImagesChange: (count: number) => void;
+  onLockMaterialsChange: (lock: boolean) => void;
 }
 
 /**
@@ -45,12 +47,14 @@ export default function StyleControls({
   style,
   aspect,
   numImages,
+  lockMaterials,
   disabled,
   onControlTypeChange,
   onControlStrengthChange,
   onStyleChange,
   onAspectChange,
   onNumImagesChange,
+  onLockMaterialsChange,
 }: StyleControlsProps) {
   // Ordered by what suits the current input type; all options stay available.
   const controlTypes = suggestedControlTypes(inputType);
@@ -83,6 +87,27 @@ export default function StyleControls({
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="label">Materials</h2>
+        <label className="flex items-start gap-2 text-[13px] text-ink">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={lockMaterials}
+            disabled={disabled}
+            onChange={(event) => onLockMaterialsChange(event.target.checked)}
+          />
+          <span>
+            Lock materials
+            <span className="block text-[12px] text-muted">
+              {lockMaterials
+                ? 'Keeps your model’s cladding and colours; only lighting and realism change. Name a material (prompt or palette) to change it.'
+                : 'Lets the model reinterpret materials for a photoreal look when none are named.'}
+            </span>
+          </span>
+        </label>
       </section>
 
       {structureAndFormatApply && (

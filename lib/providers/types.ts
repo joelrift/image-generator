@@ -34,6 +34,12 @@ export interface GenerateInput {
   styleRefImage?: ImageInput; // optional (Redux / IP-Adapter), Phase 4
   /** Material palette — names always reach the prompt; images used by multi-image providers. */
   materials?: MaterialRef[];
+  /**
+   * Keep the source's existing materials/cladding/colours (default true), changing
+   * a material only where the prompt or palette names one. When false, the model
+   * may reinterpret materials for a photoreal result.
+   */
+  lockMaterials?: boolean;
   numImages?: number;
   width?: number;
   height?: number;

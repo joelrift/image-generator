@@ -86,6 +86,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
   const [prompt, setPrompt] = useState('');
   const [sceneTags, setSceneTags] = useState<SceneTags>({});
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [lockMaterials, setLockMaterials] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -173,6 +174,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     form.set('numImages', String(numImages));
     form.set('width', String(width));
     form.set('height', String(height));
+    form.set('lockMaterials', String(lockMaterials));
     appendMaterials(form, materials);
 
     try {
@@ -223,6 +225,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
     file,
     inputType,
     isGenerating,
+    lockMaterials,
     materials,
     numImages,
     providerName,
@@ -453,12 +456,14 @@ export default function Studio({ providerName }: { providerName: ProviderName })
             style={style}
             aspect={aspect}
             numImages={numImages}
+            lockMaterials={lockMaterials}
             disabled={isGenerating}
             onControlTypeChange={setControlType}
             onControlStrengthChange={setControlStrength}
             onStyleChange={setStyle}
             onAspectChange={setAspect}
             onNumImagesChange={setNumImages}
+            onLockMaterialsChange={setLockMaterials}
           />
           <MaterialPalette
             materials={materials}
