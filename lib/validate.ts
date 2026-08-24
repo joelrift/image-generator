@@ -59,7 +59,7 @@ export async function readLimitedFormData(
   }
 
   const body = request.body;
-  if (!body) return request.formData();
+  if (!body) return parseFormData(request);
 
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
@@ -81,9 +81,20 @@ export async function readLimitedFormData(
   }
 
   const contentType = request.headers.get('content-type');
-  return new Response(Buffer.concat(chunks), {
-    headers: contentType ? { 'content-type': contentType } : undefined,
-  }).formData();
+  return parseFormData(
+    new Response(Buffer.concat(chunks), {
+      headers: contentType ? { 'content-type': contentType } : undefined,
+    }),
+  );
+}
+
+/** Parse a form body, turning a malformed/empty body into a 400 rather than a 500. */
+async function parseFormData(source: Request | Response): Promise<FormData> {
+  try {
+    return await source.formData();
+  } catch {
+    throw badRequest('Request body must be multipart form data.');
+  }
 }
 
 export class HttpError extends Error {

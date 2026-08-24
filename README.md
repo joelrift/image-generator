@@ -327,7 +327,33 @@ Two guards close the gaps an internal tool should not ship with:
   limit; override with `RENDER_MAX_BODY_BYTES`.
 
 Keys are read server-side only. Nothing is exposed as `NEXT_PUBLIC_*`, and no
-provider call is ever made from the browser.
+provider call is ever made from the browser. A key field in the browser is
+deliberately **not** offered — an API key is a spending credential, and putting
+it in the page (or `localStorage`, or a browser→provider call) would expose it
+to anyone using or inspecting the app. The key belongs in the server env; see
+**Deploying**.
+
+### Deploying
+
+The intended hosted setup: the provider key lives in the host's **server** env
+vars (never the browser), behind an access gate so only staff can spend it.
+
+1. **Push** to GitHub (already the case here).
+2. **Import the repo** into Netlify or Vercel (both detect Next.js; no build
+   config needed).
+3. **Set env vars** in the host's dashboard — the same names as `.env.local`:
+   `BFL_API_KEY`, `GEMINI_API_KEY`, `RENDER_PROVIDER=bfl`,
+   `RENDER_PROVIDER_FINALIZE=gemini`. These stay server-side.
+4. **Set the access gate**: `APP_ACCESS_PASSWORD` (and optionally
+   `APP_ACCESS_USER`). With it set, `middleware.ts` puts the whole app — pages
+   *and* `/api` — behind HTTP Basic Auth: the browser prompts once for the shared
+   password, and unauthenticated requests get a 401. Without it, the app is open
+   (fine for local dev / Mock mode, **not** for a public URL).
+5. Deploys serve over HTTPS, so the Basic credential is protected in transit.
+
+The gate is a shared password by design — the simplest thing that stops an
+anonymous visitor from running up the provider bill. If per-user identity or
+audit logging is ever needed, that is a real auth provider (Phase 5), not this.
 
 ## Phase status
 
