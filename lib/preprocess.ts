@@ -66,5 +66,5 @@ export function describeControlStrength(strength: number): string {
   if (strength < 0.35) return 'Free interpretation — geometry may change substantially';
   if (strength < 0.6) return 'Balanced — overall form preserved';
   if (strength < 0.85) return 'Close to the source — geometry followed';
-  return 'Near-identical geometry — only materials and light change';
+  return 'Near-identical geometry — your materials are kept; only lighting and realism improve (name materials to change them)';
 }

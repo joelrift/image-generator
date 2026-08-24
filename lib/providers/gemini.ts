@@ -257,7 +257,7 @@ function buildGenerateInstruction(input: GenerateInput): string {
   const strength = Math.min(Math.max(input.controlStrength, 0), 1);
   const geometry =
     strength >= 0.6
-      ? 'Preserve the exact geometry, proportions and camera angle; change only materials, lighting and atmosphere.'
+      ? 'Preserve the exact geometry, proportions, camera angle, and the existing materials, cladding and colours; improve only lighting, shadows, realism and atmosphere. Keep each surface’s material as in the original unless the description explicitly names a different one.'
       : 'Use the image as guidance for composition, but you may reinterpret details.';
   return `Turn this into ${styleClause}: ${input.prompt.replace(/[.\s]+$/, '')}. ${geometry}`;
 }

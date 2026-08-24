@@ -435,7 +435,7 @@ export default function Studio({ providerName }: { providerName: ProviderName })
       </header>
 
       <div className="flex flex-1 flex-col lg:flex-row">
-        <aside className="flex w-full shrink-0 flex-col gap-6 border-line p-5 lg:w-[320px] lg:border-r">
+        <aside className="flex w-full shrink-0 flex-col gap-6 border-line p-5 lg:w-[320px] lg:overflow-y-auto lg:border-r">
           <UploadPanel
             file={file}
             previewUrl={previewUrl}
