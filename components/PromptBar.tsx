@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import PromptHelper from './PromptHelper';
 import { selectedCount, type SceneTags } from '@/lib/prompt-tags';
 
 interface PromptBarProps {
@@ -14,7 +12,6 @@ interface PromptBarProps {
   numImages: number;
   imageCount: number;
   onPromptChange: (prompt: string) => void;
-  onTagsChange: (tags: SceneTags) => void;
   onGenerate: () => void;
 }
 
@@ -28,10 +25,8 @@ export default function PromptBar({
   numImages,
   imageCount,
   onPromptChange,
-  onTagsChange,
   onGenerate,
 }: PromptBarProps) {
-  const [helperOpen, setHelperOpen] = useState(false);
   const tagCount = selectedCount(tags);
 
   /** Cmd/Ctrl+Enter submits — the textarea keeps plain Enter for newlines. */
@@ -42,38 +37,16 @@ export default function PromptBar({
     }
   };
 
-  // Show the composed prompt only when tags actually add something, so the user
-  // can see exactly what will be sent (as GoBANANAS surfaced its full prompt).
+  // Show the composed prompt only when the helper chips add something, so the
+  // user can see exactly what will be sent (as GoBANANAS surfaced its prompt).
   const showComposed = tagCount > 0 && composedPrompt.length > 0;
 
   return (
     <div className="border-t border-line bg-surface p-4">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor="prompt" className="label">
-            Prompt
-          </label>
-          <button
-            type="button"
-            onClick={() => setHelperOpen((open) => !open)}
-            aria-expanded={helperOpen}
-            className="flex items-center gap-1.5 text-[12px] text-muted hover:text-ink"
-          >
-            <span aria-hidden="true">{helperOpen ? '−' : '+'}</span>
-            Prompt helper
-            {tagCount > 0 && (
-              <span className="rounded-full bg-accent-soft px-1.5 font-mono text-[10px] text-accent">
-                {tagCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {helperOpen && (
-          <div className="rounded border border-line bg-surface-2 p-3">
-            <PromptHelper tags={tags} disabled={isGenerating} onChange={onTagsChange} />
-          </div>
-        )}
+        <label htmlFor="prompt" className="label">
+          Prompt
+        </label>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <textarea

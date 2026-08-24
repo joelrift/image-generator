@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MaskEditor, { type ApplyEditArgs } from './MaskEditor';
 import MaterialPalette from './MaterialPalette';
 import PromptBar from './PromptBar';
+import PromptHelper from './PromptHelper';
 import ResultsGrid from './ResultsGrid';
 import StyleControls from './StyleControls';
 import UploadPanel from './UploadPanel';
@@ -17,7 +18,7 @@ import type {
 } from '@/lib/providers/types';
 import { imageFieldValue } from '@/lib/mask';
 import { activeMaterials, materialsClause, type Material } from '@/lib/materials';
-import { composePrompt, type SceneTags } from '@/lib/prompt-tags';
+import { composePrompt, selectedCount, type SceneTags } from '@/lib/prompt-tags';
 import { upscaleImage, type UpscaleFactor } from '@/lib/upscale';
 import {
   ASPECTS,
@@ -504,10 +505,22 @@ export default function Studio({ providerName }: { providerName: ProviderName })
             numImages={numImages}
             imageCount={totalImages}
             onPromptChange={setPrompt}
-            onTagsChange={setSceneTags}
             onGenerate={handleGenerate}
           />
         </main>
+
+        <aside className="flex w-full shrink-0 flex-col gap-4 border-line p-5 lg:w-[300px] lg:overflow-y-auto lg:border-l">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="label">Prompt helper</h2>
+            {selectedCount(sceneTags) > 0 && (
+              <span className="label">{selectedCount(sceneTags)} selected</span>
+            )}
+          </div>
+          <p className="text-[12px] text-muted">
+            One choice per group composes onto your prompt. Click a selected chip to clear it.
+          </p>
+          <PromptHelper tags={sceneTags} disabled={isGenerating} onChange={setSceneTags} />
+        </aside>
       </div>
 
       {editing && (

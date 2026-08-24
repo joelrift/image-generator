@@ -22,7 +22,7 @@ export default function PromptHelper({ tags, disabled, onChange }: PromptHelperP
   };
 
   return (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="flex flex-col gap-4">
       {TAG_CATEGORIES.map((category) => (
         <section key={category.key} className="flex flex-col gap-2">
           <h3 className="label">{category.label}</h3>
